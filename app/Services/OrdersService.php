@@ -67,7 +67,8 @@ class OrdersService
         protected CurrencyService $currencyService,
         protected Options $optionsService,
         protected TaxService $taxService,
-        protected ReportService $reportService
+        protected ReportService $reportService,
+        protected MathService $mathService,
     ) {
         // ...
     }
@@ -109,14 +110,14 @@ class OrdersService
          * order is just saved as hold, otherwise a check is made on the available stock
          */
         if ( in_array( $paymentStatus, [ 'paid', 'partially_paid', 'unpaid' ] ) ) {
-            $fields[ 'products' ] = $this->__checkProductStock( $fields['products'] );
+            $fields[ 'products' ] = $this->__checkProductStock( $fields['products'], $order );
         }
 
         /**
          * check discount validity and throw an
          * error is something is not set correctly.
          */
-        $this->__checkDiscountVality( $fields );
+        $this->__checkDiscountValidity( $fields );
 
         /**
          * check delivery informations before
@@ -149,7 +150,7 @@ class OrdersService
         /**
          * if we're editing an order. We need to loop the products in order
          * to recover all the products that has been deleted from the POS and therefore
-         * aren't tracked no more.
+         * aren't tracked no more. This also make stock adjustment for product which has changed.
          */
         $this->__deleteUntrackedProducts( $order, $fields[ 'products' ] );
 
@@ -485,9 +486,8 @@ class OrdersService
     {
         if ( $order instanceof Order ) {
             $ids = collect( $products )
-                ->filter( fn( $product ) => isset( $product[ 'id' ] ) )
-                ->map( fn( $product ) => $product[ 'id' ] . '-' . $product[ 'unit_id' ] ?? false )
-                ->filter( fn( $product ) => $product !== false )
+                ->filter( fn( $product ) => isset( $product[ 'id' ] ) && isset( $product[ 'unit_id' ] ) )
+                ->map( fn( $product ) => $product[ 'id' ] . '-' . $product[ 'unit_id' ] )
                 ->toArray();
 
             /**
@@ -497,34 +497,44 @@ class OrdersService
              */
             if ( $order->payment_status !== Order::PAYMENT_HOLD ) {
                 $order->products->map( function( OrderProduct $product ) use ( $products ) {
-                    $products = collect( $products )
-                            ->filter( fn( $product ) => isset( $product[ 'id' ] ) )
-                            ->mapWithKeys( fn( $product ) => [ $product[ 'id' ] => $product ] )
-                            ->toArray();
+                    $productHistory   =   ProductHistory::where( 'operation_type', ProductHistory::ACTION_SOLD )
+                        ->where( 'order_product_id', $product->id )
+                        ->first();
 
-                    if ( in_array( $product->id, array_keys( $products ) ) ) {
-                        if ( $product->quantity < $products[ $product->id ][ 'quantity' ] ) {
-                            return [
-                                'operation' => 'add',
-                                'unit_price' => $products[ $product->id ][ 'unit_price' ],
-                                'total_price' => $products[ $product->id ][ 'total_price' ],
-                                'quantity' => $products[ $product->id ][ 'quantity' ] - $product->quantity,
-                                'orderProduct' => $product,
-                            ];
-                        } elseif ( $product->quantity > $products[ $product->id ][ 'quantity' ] ) {
-                            return [
-                                'operation' => 'remove',
-                                'unit_price' => $products[ $product->id ][ 'unit_price' ],
-                                'total_price' => $products[ $product->id ][ 'total_price' ],
-                                'quantity' => $product->quantity - $products[ $product->id ][ 'quantity' ],
-                                'orderProduct' => $product,
-                            ];
+                    /**
+                     * We should restore or retreive quantities when the 
+                     * product has initially be marked as sold.
+                     */
+                    if ( $productHistory instanceof ProductHistory ) {
+                        $products = collect( $products )
+                                ->filter( fn( $product ) => isset( $product[ 'id' ] ) )
+                                ->mapWithKeys( fn( $product ) => [ $product[ 'id' ] => $product ] )
+                                ->toArray();
+    
+                        if ( in_array( $product->id, array_keys( $products ) ) ) {
+                            if ( $product->quantity < $products[ $product->id ][ 'quantity' ] ) {
+                                return [
+                                    'operation' => 'add',
+                                    'unit_price' => $products[ $product->id ][ 'unit_price' ],
+                                    'total_price' => $products[ $product->id ][ 'total_price' ],
+                                    'quantity' => $products[ $product->id ][ 'quantity' ] - $product->quantity,
+                                    'orderProduct' => $product,
+                                ];
+                            } elseif ( $product->quantity > $products[ $product->id ][ 'quantity' ] ) {
+                                return [
+                                    'operation' => 'remove',
+                                    'unit_price' => $products[ $product->id ][ 'unit_price' ],
+                                    'total_price' => $products[ $product->id ][ 'total_price' ],
+                                    'quantity' => $product->quantity - $products[ $product->id ][ 'quantity' ],
+                                    'orderProduct' => $product,
+                                ];
+                            }
                         }
                     }
 
                     /**
-                     * when to change has been made on
-                     * the order product
+                     * When no changes has been made
+                     * on the orde product.
                      */
                     return false;
                 })
@@ -625,7 +635,7 @@ class OrdersService
      *
      * @throws NotAllowedException
      */
-    public function __checkDiscountVality( $fields )
+    public function __checkDiscountValidity( $fields )
     {
         if (! empty(@$fields['discount_type'])) {
             if ($fields['discount_type'] === 'percentage' && (floatval($fields['discount_percentage']) < 0) || (floatval($fields['discount_percentage']) > 100)) {
@@ -1034,15 +1044,12 @@ class OrdersService
 
         $orderProducts = $products->map(function ($product) use (&$subTotal, &$taxes, &$order, &$gross) {
 
-            $previousQuantity    =   0;
-
             /**
              * if the product id is provided
              * then we can use that id as a reference.
              */
             if ( isset( $product[ 'id' ] ) ) {
                 $orderProduct = OrderProduct::find( $product[ 'id' ] );
-                $previousQuantity    =   $orderProduct->quantity;
             } else {
                 $orderProduct = new OrderProduct;
             }
@@ -1123,10 +1130,13 @@ class OrdersService
                  * already exists and which are edited. We'll here only records
                  * products that doesn't exists yet.
                  */
-                if ( $orderProduct->wasRecentlyCreated ) {
+                $stockHistoryExists     =   ProductHistory::where( 'order_product_id', $orderProduct->id )
+                    ->where( 'operation_type', ProductHistory::ACTION_SOLD )
+                    ->count() === 1;
+
+                if ( ! $stockHistoryExists ) {
                     $this->productService->stockAdjustment( ProductHistory::ACTION_SOLD, $history );
                 }
-
             }
 
             event( new OrderProductAfterSavedEvent( $orderProduct, $order, $product ) );
@@ -1149,11 +1159,11 @@ class OrdersService
             $product = null;
             $productUnitQuantity = null;
 
-            if ( ! empty( $orderProduct[ 'sku' ] ) || ! empty( $orderProduct[ 'product_id' ] ) ) {
+            if ( ! empty( $orderProduct[ 'sku' ] ?? null ) || ! empty( $orderProduct[ 'product_id' ] ?? null ) ) {
                 $product = Cache::remember( 'store-' . ( $orderProduct['product_id'] ?? $orderProduct['sku'] ), 60, function() use ($orderProduct) {
-                    if (! empty(@$orderProduct['product_id'])) {
+                    if ( ! empty( $orderProduct['product_id'] ?? null ) ) {
                         return $this->productService->get($orderProduct['product_id']);
-                    } elseif (! empty(@$orderProduct['sku'])) {
+                    } elseif ( ! empty( $orderProduct['sku'] ?? null ) ) {
                         return $this->productService->getProductUsingSKUOrFail($orderProduct['sku']);
                     }
                 });
@@ -1175,7 +1185,7 @@ class OrdersService
      * @param SupportCollection $items
      * @return SupportCollection $items
      */
-    private function __checkProductStock( SupportCollection $items )
+    private function __checkProductStock( SupportCollection $items, Order $order = null )
     {
         $session_identifier = Str::random( '10' );
 
@@ -1290,13 +1300,37 @@ class OrdersService
                     ->withUnitQuantity( $orderProduct[ 'unit_quantity_id' ] )
                     ->sum( 'quantity' );
 
-                if ( $productUnitQuantity->quantity - $storageQuantity < $orderProduct[ 'quantity' ] ) {
+                $orderProductQuantity       =   $orderProduct[ 'quantity' ];
+                    
+                /**
+                 * If the orderProduct has an id, that means we're editing an order. In order to extract what is the exact quantity
+                 * we want to deduct from the stock, we need to know wether the quantity has changed (greater or not). We then need to pull 
+                 * the original reference of the orderProduct to compute the new quantity that will be deducted from inventory.
+                 */
+                $quantityToIgnore       =   0;
+
+                if ( isset( $orderProduct[ 'id' ] ) ) {
+                    $stockWasDeducted   =   ProductHistory::where( 'order_product_id', $orderProduct[ 'id' ] )
+                        ->where( 'operation_type', ProductHistory::ACTION_SOLD )
+                        ->count() === 1;
+
+                    /**
+                     * Only when the stock was deducted, we'll ignore the quantity
+                     * that is currently in use by the order product.
+                     */
+                    if ( $stockWasDeducted ) {
+                        $orderProductRerefence  =   OrderProduct::find( $orderProduct[ 'id' ] );
+                        $quantityToIgnore       =   $orderProductRerefence->quantity;
+                    }
+                } 
+
+                if ( ( $productUnitQuantity->quantity + $quantityToIgnore ) - $storageQuantity < abs( $orderProductQuantity ) ) {
                     throw new \Exception(
                         sprintf(
                             __( 'Unable to proceed, there is not enough stock for %s using the unit %s. Requested : %s, available %s' ),
                             $product->name,
                             $productUnitQuantity->unit->name,
-                            $orderProduct[ 'quantity' ],
+                            abs( $orderProductQuantity ),
                             $productUnitQuantity->quantity - $storageQuantity
                         )
                     );
@@ -1978,7 +2012,7 @@ class OrdersService
      */
     public function addProducts(Order $order, $products)
     {
-        $products = $this->__checkProductStock( collect( $products) );
+        $products = $this->__checkProductStock( collect( $products ), $order );
 
         /**
          * let's save the products
