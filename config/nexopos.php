@@ -1,11 +1,12 @@
 <?php
 
 return [
-    'version' => '4.8.16',
+    'version' => '4.8.17',
     'languages' => [
         'en' => 'English',
         'de' => 'Deutsch',
         'fr' => 'Français',
+        'nl' => 'Nederlands',
         'es' => 'Espanol',
         'it' => 'Italian',
         'ar' => 'Arabic',
