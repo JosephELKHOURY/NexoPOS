@@ -4,15 +4,17 @@ export default class Tax {
         switch ( type ) {
             case 'inclusive':
                 return Tax.computeInclusive( value, rate );
-            break;
             case 'exclusive':
                 return Tax.computeExclusive( value, rate )
-            break;
         }
     }
 
     static computeInclusive( value, rate ) {
-        return math.chain(rate).add(100).divide(value).multiply(100).done();
+        return math.chain( 
+            math.chain( value ).divide(
+                math.chain( rate ).add( 100 ).done()
+            ).done() 
+        ).multiply( 100 ).done();
     }
 
     static computeExclusive( value, rate ) {

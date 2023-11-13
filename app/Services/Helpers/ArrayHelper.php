@@ -85,6 +85,9 @@ trait ArrayHelper
 
         if ( $collections ) {
             foreach ( $collections as $collection ) {
+                
+                $collection     =   ( object ) $collection;
+
                 $id = $config[0];
                 if ( ! is_array( $config[1] ) ) {
                     $name = $config[1];
@@ -142,7 +145,7 @@ trait ArrayHelper
      */
     public static function flatArrayWithKeys( $data )
     {
-        return collect( $data )->mapWithKeys( function( $data, $index ) {
+        return collect( $data )->mapWithKeys( function ( $data, $index ) {
             if ( ! is_array( $data ) || is_numeric( $index ) ) {
                 return [ $index => $data ];
             } elseif ( is_array( $data ) ) {
@@ -154,7 +157,7 @@ trait ArrayHelper
             }
 
             return [];
-        })->filter( function( $field ) {
+        })->filter( function ( $field ) {
             return $field !== false;
         });
     }

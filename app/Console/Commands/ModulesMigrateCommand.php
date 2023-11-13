@@ -54,7 +54,7 @@ class ModulesMigrateCommand extends Command
         if ( empty( $module ) ) {
             throw new NotFoundException(
                 sprintf(
-                    __( 'Unable to find a module having the identifier "%".' ),
+                    __( 'Unable to find a module having the identifier "%s".' ),
                     $this->argument( 'moduleNamespace' )
                 )
             );
@@ -70,7 +70,7 @@ class ModulesMigrateCommand extends Command
             ) );
         }
 
-        $this->withProgressBar( $unmigratedFiles, function( $file ) use ( $module ) {
+        $this->withProgressBar( $unmigratedFiles, function ( $file ) use ( $module ) {
             $response = $this->modulesService->runMigration( $module[ 'namespace' ], $file );
             AfterMigrationExecutedEvent::dispatch( $module, $response, $file );
         });

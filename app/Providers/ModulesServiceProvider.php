@@ -24,7 +24,7 @@ class ModulesServiceProvider extends ServiceProvider
          * trigger boot method only for enabled modules
          * service providers that extends ModulesServiceProvider.
          */
-        collect( $modules->getEnabled() )->each( function( $module ) use ( $modules ) {
+        collect( $modules->getEnabled() )->each( function ( $module ) use ( $modules ) {
             $modules->triggerServiceProviders( $module, 'boot', ServiceProvider::class );
         });
 
@@ -44,29 +44,32 @@ class ModulesServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->singleton( ModulesService::class, function( $app ) {
+        $this->app->singleton( ModulesService::class, function ( $app ) {
             $this->modules = new ModulesService;
-            $this->modules->load();
 
-            collect( $this->modules->getEnabled() )->each( fn( $module ) => $this->modules->boot( $module ) );
-
-            /**
-             * trigger register method only for enabled modules
-             * service providers that extends ModulesServiceProvider.
-             */
-            collect( $this->modules->getEnabled() )->each( function( $module ) {
+            if ( ns()->installed( true ) ) {
+                $this->modules->load();
+    
+                collect( $this->modules->getEnabled() )->each( fn( $module ) => $this->modules->boot( $module ) );
+    
                 /**
-                 * register module commands
+                 * trigger register method only for enabled modules
+                 * service providers that extends ModulesServiceProvider.
                  */
-                $this->modulesCommands = array_merge(
-                    $this->modulesCommands,
-                    array_keys( $module[ 'commands' ] )
-                );
-
-                $this->modules->triggerServiceProviders( $module, 'register', ServiceProvider::class );
-            });
-
-            event( new ModulesLoadedEvent( $this->modules->get() ) );
+                collect( $this->modules->getEnabled() )->each( function ( $module ) {
+                    /**
+                     * register module commands
+                     */
+                    $this->modulesCommands = array_merge(
+                        $this->modulesCommands,
+                        array_keys( $module[ 'commands' ] )
+                    );
+    
+                    $this->modules->triggerServiceProviders( $module, 'register', ServiceProvider::class );
+                });
+    
+                event( new ModulesLoadedEvent( $this->modules->get() ) );
+            }
 
             return $this->modules;
         });
