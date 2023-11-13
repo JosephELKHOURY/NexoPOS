@@ -1,1 +1,15 @@
-{}
+{
+    "/js/bootstrap.min/bootstrap.js": "/js/bootstrap.min/bootstrap.js?id=b6ca36ebd366b54a2ea29ccf8f851783",
+    "/js/lang-loader.min.js": "/js/lang-loader.min.js?id=d78760ef0c57f805a15ff2d81896b2b4",
+    "/js/app.min.js": "/js/app.min.js?id=401c213642a56d185b88cdc5f161964d",
+    "/js/dashboard.min.js": "/js/dashboard.min.js?id=e89fefc95bf6e00cd3573b23ff9cba66",
+    "/js/cashier.min.js": "/js/cashier.min.js?id=d961bf23bc6548eb9d087578bf53381e",
+    "/js/update.min.js": "/js/update.min.js?id=5ee7c96ce6ff16c79381331d815b09be",
+    "/js/pos-init.min.js": "/js/pos-init.min.js?id=983de5d7c00075414a2d62a487ee8bce",
+    "/js/pos.min.js": "/js/pos.min.js?id=48e418d90bbccc8b2a5d60b3c0c6b5c3",
+    "/js/auth.min.js": "/js/auth.min.js?id=0dd133a3f839ea796a51877305423622",
+    "/js/setup.min.js": "/js/setup.min.js?id=7595c0c460103c6c0bacf3e8c46fad94",
+    "/js/popups.min.js": "/js/popups.min.js?id=3ff201b89e8cb99641efc11b159ad7b6",
+    "/js/manifest.js": "/js/manifest.js?id=e4073c66c2ab27f9764e4b1cf7dd892b",
+    "/js/vendor.js": "/js/vendor.js?id=e45f719cc14864bb60dca98de6b658f1"
+}
