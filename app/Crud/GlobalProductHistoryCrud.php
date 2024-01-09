@@ -2,12 +2,12 @@
 
 namespace App\Crud;
 
+use App\Casts\ProductHistoryActionCast;
 use App\Exceptions\NotAllowedException;
 use App\Models\ProductHistory;
 use App\Models\User;
 use App\Services\CrudEntry;
 use App\Services\CrudService;
-use App\Services\Users;
 use Illuminate\Http\Request;
 use TorMorten\Eventy\Facades\Events as Hook;
 
@@ -51,6 +51,10 @@ class GlobalProductHistoryCrud extends CrudService
         'read' => true,
         'update' => false,
         'delete' => false,
+    ];
+
+    public $casts = [
+        'operation_type' => ProductHistoryActionCast::class,
     ];
 
     /**
@@ -131,7 +135,7 @@ class GlobalProductHistoryCrud extends CrudService
     {
         parent::__construct();
 
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
+        Hook::addFilter($this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2);
     }
 
     /**
@@ -143,15 +147,15 @@ class GlobalProductHistoryCrud extends CrudService
     public function getLabels()
     {
         return [
-            'list_title' => __( 'Product Histories' ),
-            'list_description' => __( 'Display all product stock flow.' ),
-            'no_entry' => __( 'No products stock flow has been registered' ),
-            'create_new' => __( 'Add a new products stock flow' ),
-            'create_title' => __( 'Create a new products stock flow' ),
-            'create_description' => __( 'Register a new products stock flow and save it.' ),
-            'edit_title' => __( 'Edit products stock flow' ),
-            'edit_description' => __( 'Modify  Globalproducthistorycrud.' ),
-            'back_to_list' => __( 'Return to Product Histories' ),
+            'list_title' => __('Product Histories'),
+            'list_description' => __('Display all product stock flow.'),
+            'no_entry' => __('No products stock flow has been registered'),
+            'create_new' => __('Add a new products stock flow'),
+            'create_title' => __('Create a new products stock flow'),
+            'create_description' => __('Register a new products stock flow and save it.'),
+            'edit_title' => __('Edit products stock flow'),
+            'edit_description' => __('Modify  Globalproducthistorycrud.'),
+            'back_to_list' => __('Return to Product Histories'),
         ];
     }
 
@@ -159,7 +163,7 @@ class GlobalProductHistoryCrud extends CrudService
      * Check whether a feature is enabled
      *
      **/
-    public function isEnabled( $feature ): bool
+    public function isEnabled($feature): bool
     {
         return false; // by default
     }
@@ -170,7 +174,7 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  object/null
      * @return  array of field
      */
-    public function getForm( $entry = null )
+    public function getForm($entry = null)
     {
         return [
             // ...
@@ -183,7 +187,7 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  array of fields
      * @return  array of fields
      */
-    public function filterPostInputs( $inputs )
+    public function filterPostInputs($inputs)
     {
         return $inputs;
     }
@@ -194,7 +198,7 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  array of fields
      * @return  array of fields
      */
-    public function filterPutInputs( $inputs, ProductHistory $entry )
+    public function filterPutInputs($inputs, ProductHistory $entry)
     {
         return $inputs;
     }
@@ -205,10 +209,10 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  Request $request
      * @return  void
      */
-    public function beforePost( $request )
+    public function beforePost($request)
     {
-        if ( $this->permissions[ 'create' ] !== false ) {
-            ns()->restrict( $this->permissions[ 'create' ] );
+        if ($this->permissions[ 'create' ] !== false) {
+            ns()->restrict($this->permissions[ 'create' ]);
         } else {
             throw new NotAllowedException;
         }
@@ -222,7 +226,7 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  Request $request
      * @return  void
      */
-    public function afterPost( $request, ProductHistory $entry )
+    public function afterPost($request, ProductHistory $entry)
     {
         return $request;
     }
@@ -233,9 +237,9 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  string
      * @return  mixed
      */
-    public function get( $param )
+    public function get($param)
     {
-        switch ( $param ) {
+        switch ($param) {
             case 'model': return $this->model;
                 break;
         }
@@ -248,10 +252,10 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  object entry
      * @return  void
      */
-    public function beforePut( $request, $entry )
+    public function beforePut($request, $entry)
     {
-        if ( $this->permissions[ 'update' ] !== false ) {
-            ns()->restrict( $this->permissions[ 'update' ] );
+        if ($this->permissions[ 'update' ] !== false) {
+            ns()->restrict($this->permissions[ 'update' ]);
         } else {
             throw new NotAllowedException;
         }
@@ -266,7 +270,7 @@ class GlobalProductHistoryCrud extends CrudService
      * @param  object entry
      * @return  void
      */
-    public function afterPut( $request, $entry )
+    public function afterPut($request, $entry)
     {
         return $request;
     }
@@ -276,9 +280,9 @@ class GlobalProductHistoryCrud extends CrudService
      *
      * @return  void
      */
-    public function beforeDelete( $namespace, $id, $model )
+    public function beforeDelete($namespace, $id, $model)
     {
-        if ( $namespace == 'ns.global-products-history' ) {
+        if ($namespace == 'ns.global-products-history') {
             /**
              *  Perform an action before deleting an entry
              *  In case something wrong, this response can be returned
@@ -288,8 +292,8 @@ class GlobalProductHistoryCrud extends CrudService
              *      'message'   =>  __( 'You\re not allowed to do that.' )
              *  ], 403 );
              **/
-            if ( $this->permissions[ 'delete' ] !== false ) {
-                ns()->restrict( $this->permissions[ 'delete' ] );
+            if ($this->permissions[ 'delete' ] !== false) {
+                ns()->restrict($this->permissions[ 'delete' ]);
             } else {
                 throw new NotAllowedException;
             }
@@ -298,66 +302,64 @@ class GlobalProductHistoryCrud extends CrudService
 
     /**
      * Define Columns
-     *
-     * @return  array of columns configuration
      */
-    public function getColumns()
+    public function getColumns(): array
     {
         return [
             'product_name' => [
-                'label' => __( 'Product' ),
+                'label' => __('Product'),
                 '$direction' => '',
                 'width' => '300px',
                 '$sort' => false,
             ],
             'procurement_name' => [
-                'label' => __( 'Procurement' ),
+                'label' => __('Procurement'),
                 '$direction' => '',
                 'width' => '200px',
                 '$sort' => false,
             ],
             'order_code' => [
-                'label' => __( 'Order' ),
+                'label' => __('Order'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'operation_type' => [
-                'label' => __( 'Operation Type' ),
+                'label' => __('Operation Type'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'unit_name' => [
-                'label' => __( 'Unit' ),
+                'label' => __('Unit'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'before_quantity' => [
-                'label' => __( 'Initial Quantity' ),
+                'label' => __('Initial Quantity'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'quantity' => [
-                'label' => __( 'Quantity' ),
+                'label' => __('Quantity'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'after_quantity' => [
-                'label' => __( 'New Quantity' ),
+                'label' => __('New Quantity'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'total_price' => [
-                'label' => __( 'Total Price' ),
+                'label' => __('Total Price'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'user_username' => [
-                'label' => __( 'Author' ),
+                'label' => __('Author'),
                 '$direction' => '',
                 '$sort' => false,
             ],
             'created_at' => [
-                'label' => __( 'Created At' ),
+                'label' => __('Created At'),
                 '$direction' => '',
                 '$sort' => false,
             ],
@@ -367,75 +369,28 @@ class GlobalProductHistoryCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions(CrudEntry $entry, $namespace)
     {
-        $entry->procurement_name = $entry->procurement_name ?: __( 'N/A' );
-        $entry->order_code = $entry->order_code ?: __( 'N/A' );
-        $entry->total_price = ns()->currency->fresh( $entry->total_price )->format();
-
-        switch ( $entry->operation_type ) {
-            case ProductHistory::ACTION_ADDED :
-            case ProductHistory::ACTION_ADJUSTMENT_RETURN :
-            case ProductHistory::ACTION_RETURNED :
-            case ProductHistory::ACTION_STOCKED :
-            case ProductHistory::ACTION_TRANSFER_CANCELED :
-            case ProductHistory::ACTION_TRANSFER_IN :
-            case ProductHistory::ACTION_VOID_RETURN :
-                $entry->{ '$cssClass' } = 'info border text-sm';
-                break;
-            default:
-                $entry->{ '$cssClass' } = 'success border text-sm';
-                break;
-        }
-
-        switch ( $entry->operation_type ) {
-            case ProductHistory::ACTION_ADDED: $entry->operation_type = __( 'Added' );
-                break;
-            case ProductHistory::ACTION_ADJUSTMENT_RETURN: $entry->operation_type = __( 'Stock Return' );
-                break;
-            case ProductHistory::ACTION_ADJUSTMENT_SALE: $entry->operation_type = __( 'Sale Adjustment' );
-                break;
-            case ProductHistory::ACTION_DEFECTIVE: $entry->operation_type = __( 'Defective' );
-                break;
-            case ProductHistory::ACTION_DELETED: $entry->operation_type = __( 'Deleted' );
-                break;
-            case ProductHistory::ACTION_LOST: $entry->operation_type = __( 'Lost' );
-                break;
-            case ProductHistory::ACTION_REMOVED: $entry->operation_type = __( 'Removed' );
-                break;
-            case ProductHistory::ACTION_RETURNED: $entry->operation_type = __( 'Stock Return' );
-                break;
-            case ProductHistory::ACTION_SOLD: $entry->operation_type = __( 'Sold' );
-                break;
-            case ProductHistory::ACTION_STOCKED: $entry->operation_type = __( 'Stocked' );
-                break;
-            case ProductHistory::ACTION_TRANSFER_CANCELED: $entry->operation_type = __( 'Transfer Canceled' );
-                break;
-            case ProductHistory::ACTION_TRANSFER_IN: $entry->operation_type = __( 'Incoming Transfer' );
-                break;
-            case ProductHistory::ACTION_TRANSFER_OUT: $entry->operation_type = __( 'Outgoing Transfer' );
-                break;
-            case ProductHistory::ACTION_VOID_RETURN: $entry->operation_type = __( 'Void Return' );
-                break;
-        }
+        $entry->procurement_name = $entry->procurement_name ?: __('N/A');
+        $entry->order_code = $entry->order_code ?: __('N/A');
+        $entry->total_price = ns()->currency->fresh($entry->total_price)->format();
 
         // you can make changes here
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/nexopos/v4/crud/ns.global-products-history/' . $entry->id ),
-            'confirm' => [
-                'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ]);
+        $entry->action(
+            label: __('Delete'),
+            identifier: 'delete',
+            url: ns()->url('/api/crud/ns.global-products-history/' . $entry->id),
+            confirm: [
+                'message' => __('Would you like to delete this ?'),
+            ]
+        );
 
         return $entry;
     }
 
-    public function hook( $query ): void
+    public function hook($query): void
     {
-        $query->orderBy( 'id', 'desc' );
+        $query->orderBy('id', 'desc');
     }
 
     /**
@@ -444,18 +399,18 @@ class GlobalProductHistoryCrud extends CrudService
      * @param    object Request with object
      * @return    false/array
      */
-    public function bulkAction( Request $request )
+    public function bulkAction(Request $request)
     {
         /**
          * Deleting licence is only allowed for admin
          * and supervisor.
          */
-        if ( $request->input( 'action' ) == 'delete_selected' ) {
+        if ($request->input('action') == 'delete_selected') {
             /**
              * Will control if the user has the permissoin to do that.
              */
-            if ( $this->permissions[ 'delete' ] !== false ) {
-                ns()->restrict( $this->permissions[ 'delete' ] );
+            if ($this->permissions[ 'delete' ] !== false) {
+                ns()->restrict($this->permissions[ 'delete' ]);
             } else {
                 throw new NotAllowedException;
             }
@@ -465,9 +420,9 @@ class GlobalProductHistoryCrud extends CrudService
                 'failed' => 0,
             ];
 
-            foreach ( $request->input( 'entries' ) as $id ) {
-                $entity = $this->model::find( $id );
-                if ( $entity instanceof ProductHistory ) {
+            foreach ($request->input('entries') as $id) {
+                $entity = $this->model::find($id);
+                if ($entity instanceof ProductHistory) {
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
@@ -478,7 +433,7 @@ class GlobalProductHistoryCrud extends CrudService
             return $status;
         }
 
-        return Hook::filter( $this->namespace . '-catch-action', false, $request );
+        return Hook::filter($this->namespace . '-catch-action', false, $request);
     }
 
     /**
@@ -489,11 +444,11 @@ class GlobalProductHistoryCrud extends CrudService
     public function getLinks(): array
     {
         return [
-            'list' => ns()->url( 'dashboard/' . '/products/history' ),
-            'create' => ns()->url( 'dashboard/' . '/products/history/create' ),
-            'edit' => ns()->url( 'dashboard/' . '/products/history/edit/' ),
-            'post' => ns()->url( 'api/nexopos/v4/crud/' . 'ns.global-products-history' ),
-            'put' => ns()->url( 'api/nexopos/v4/crud/' . 'ns.global-products-history/{id}' . '' ),
+            'list' => ns()->url('dashboard/' . '/products/history'),
+            'create' => ns()->url('dashboard/' . '/products/history/create'),
+            'edit' => ns()->url('dashboard/' . '/products/history/edit/'),
+            'post' => ns()->url('api/crud/' . 'ns.global-products-history'),
+            'put' => ns()->url('api/crud/' . 'ns.global-products-history/{id}' . ''),
         ];
     }
 
@@ -504,11 +459,11 @@ class GlobalProductHistoryCrud extends CrudService
      **/
     public function getBulkActions(): array
     {
-        return Hook::filter( $this->namespace . '-bulk', [
+        return Hook::filter($this->namespace . '-bulk', [
             [
-                'label' => __( 'Delete Selected Groups' ),
+                'label' => __('Delete Selected Groups'),
                 'identifier' => 'delete_selected',
-                'url' => ns()->route( 'ns.api.crud-bulk-actions', [
+                'url' => ns()->route('ns.api.crud-bulk-actions', [
                     'namespace' => $this->namespace,
                 ]),
             ],

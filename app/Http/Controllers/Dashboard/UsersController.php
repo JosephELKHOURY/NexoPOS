@@ -14,31 +14,26 @@ use App\Http\Controllers\DashboardController;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use App\Services\Users;
+use App\Services\DateService;
+use App\Services\UsersService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\View;
 
 class UsersController extends DashboardController
 {
-    /**
-     * @param Users
-     */
-    protected $usersService;
-
-    public function __construct()
-    {
-        parent::__construct();
+    public function __construct(
+        protected UsersService $usersService,
+        protected DateService $dateService
+    ) {
+        // ...
     }
 
     public function listUsers()
     {
-        return $this->view( 'pages.dashboard.crud.table', [
-            'title' => __( 'Users List' ),
-            'createUrl' => url( '/dashboard/users/create' ),
-            'description' => __( 'Manage all users available.' ),
-            'src' => url( '/api/nexopos/v4/crud/ns.users' ),
-        ]);
+        return UserCrud::table();
     }
 
     public function createUser()
@@ -48,18 +43,18 @@ class UsersController extends DashboardController
         return UserCrud::form();
     }
 
-    public function editUser( User $user )
+    public function editUser(User $user)
     {
         ns()->restrict([ 'update.users' ]);
 
-        if ( $user->id === Auth::id() ) {
-            return redirect( ns()->route( 'ns.dashboard.users.profile' ) );
+        if ($user->id === Auth::id()) {
+            return redirect(ns()->route('ns.dashboard.users.profile'));
         }
 
-        return UserCrud::form( $user );
+        return UserCrud::form($user);
     }
 
-    public function getUsers( User $user )
+    public function getUsers(User $user)
     {
         ns()->restrict([ 'read.users' ]);
 
@@ -78,9 +73,9 @@ class UsersController extends DashboardController
          */
         ns()->restrict([ 'update.roles' ]);
 
-        return $this->view( 'pages.dashboard.users.permission-manager', [
-            'title' => __( 'Permission Manager' ),
-            'description' => __( 'Manage all permissions and roles' ),
+        return View::make('pages.dashboard.users.permission-manager', [
+            'title' => __('Permission Manager'),
+            'description' => __('Manage all permissions and roles'),
         ]);
     }
 
@@ -93,11 +88,11 @@ class UsersController extends DashboardController
     {
         ns()->restrict([ 'manage.profile' ]);
 
-        return $this->view( 'pages.dashboard.users.profile', [
-            'title' => __( 'My Profile' ),
-            'description' => __( 'Change your personal settings' ),
-            'src' => url( '/api/nexopos/v4/forms/ns.user-profile' ),
-            'submitUrl' => url( '/api/nexopos/v4/users/profile'),
+        return View::make('pages.dashboard.users.profile', [
+            'title' => __('My Profile'),
+            'description' => __('Change your personal settings'),
+            'src' => url('/api/forms/ns.user-profile'),
+            'submitUrl' => url('/api/users/profile'),
         ]);
     }
 
@@ -108,7 +103,7 @@ class UsersController extends DashboardController
      */
     public function getRoles()
     {
-        return Role::with( 'permissions' )->get();
+        return Role::with('permissions')->get();
     }
 
     /**
@@ -126,27 +121,27 @@ class UsersController extends DashboardController
      *
      * @return Json
      */
-    public function updateRole( Request $request )
+    public function updateRole(Request $request)
     {
         ns()->restrict([ 'update.roles' ]);
 
         $roles = $request->all();
 
-        foreach ( $roles as $roleNamespace => $permissions ) {
-            $role = Role::namespace( $roleNamespace );
+        foreach ($roles as $roleNamespace => $permissions) {
+            $role = Role::namespace($roleNamespace);
 
-            if ( $role instanceof Role ) {
-                $removedPermissions = collect( $permissions )->filter( fn( $permission ) => ! $permission );
-                $grantedPermissions = collect( $permissions )->filter( fn( $permission ) => $permission );
+            if ($role instanceof Role) {
+                $removedPermissions = collect($permissions)->filter(fn($permission) => ! $permission);
+                $grantedPermissions = collect($permissions)->filter(fn($permission) => $permission);
 
-                $role->removePermissions( $removedPermissions->keys() );
-                $role->addPermissions( $grantedPermissions->keys() );
+                $role->removePermissions($removedPermissions->keys());
+                $role->addPermissions($grantedPermissions->keys());
             }
         }
 
         return [
             'status' => 'success',
-            'message' => __( 'The permissions has been updated.' ),
+            'message' => __('The permissions has been updated.'),
         ];
     }
 
@@ -167,24 +162,50 @@ class UsersController extends DashboardController
      *
      * @return View
      */
-    public function editRole( Role $role )
+    public function editRole(Role $role)
     {
         ns()->restrict([ 'update.roles' ]);
 
-        return RolesCrud::form( $role );
+        return RolesCrud::form($role);
     }
 
-    public function createRole( Role $role )
+    public function createRole(Role $role)
     {
         return RolesCrud::form();
     }
 
-    public function cloneRole( Role $role )
+    public function cloneRole(Role $role)
     {
         ns()->restrict([ 'create.roles' ]);
 
-        $this->usersService = app()->make( Users::class );
+        return $this->usersService->cloneRole($role);
+    }
 
-        return $this->usersService->cloneRole( $role );
+    public function configureWidgets(Request $request)
+    {
+        return $this->usersService->storeWidgetsOnAreas($request->only([ 'column' ]));
+    }
+
+    public function createToken(Request $request)
+    {
+        $validation = Validator::make($request->all(), [
+            'name' => 'required',
+        ]);
+
+        if (! $validation->passes()) {
+            throw new Exception(__('The provided data aren\'t valid'));
+        }
+
+        return $this->usersService->createToken($request->input('name'));
+    }
+
+    public function getTokens()
+    {
+        return $this->usersService->getTokens();
+    }
+
+    public function deleteToken($tokenId)
+    {
+        return $this->usersService->deleteToken($tokenId);
     }
 }

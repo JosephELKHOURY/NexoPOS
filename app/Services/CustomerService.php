@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Classes\Currency;
 use App\Events\AfterCustomerAccountHistoryCreatedEvent;
 use App\Events\CustomerAfterUpdatedEvent;
+use App\Events\CustomerBeforeDeletedEvent;
 use App\Events\CustomerRewardAfterCouponIssuedEvent;
 use App\Events\CustomerRewardAfterCreatedEvent;
 use App\Exceptions\NotAllowedException;
@@ -18,6 +19,7 @@ use App\Models\CustomerGroup;
 use App\Models\CustomerReward;
 use App\Models\Order;
 use App\Models\RewardSystem;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -29,18 +31,21 @@ class CustomerService
      *
      * @param array customers
      */
-    public function get( $id = null )
+    public function get($id = null)
     {
-        if ( $id === null ) {
-            return Customer::with( 'billing' )
-                ->with( 'shipping' )
-                ->where( 'group_id', '<>', null )
-                ->orderBy( 'created_at', 'desc' )->get();
+        if ($id === null) {
+            return Customer::with('billing')
+                ->with('shipping')
+                ->where('group_id', '<>', null)
+                ->orderBy('created_at', 'desc')->get();
         } else {
             try {
-                return Customer::with( 'addresses' )->find( $id );
-            } catch ( Exception $exception ) {
-                throw new Exception( __( 'Unable to find the customer using the provided id.' ) );
+                return Customer::with('addresses')->findOrFail($id);
+            } catch (Exception $exception) {
+                throw new Exception(sprintf(
+                    __('Unable to find the customer using the provided id %s.'),
+                    $id
+                ));
             }
         }
     }
@@ -51,77 +56,99 @@ class CustomerService
      * @param int $limit
      * @return Collection
      */
-    public function getRecentlyActive( $limit = 30 )
+    public function getRecentlyActive($limit = 30)
     {
-        return Customer::with( 'billing' )
-            ->with( 'shipping' )
-            ->where( 'group_id', '<>', null )
-            ->limit( $limit )
-            ->orderBy( 'updated_at', 'desc' )->get();
+        return Customer::with('billing')
+            ->with('shipping', 'group')
+            ->where('group_id', '<>', null)
+            ->limit($limit)
+            ->orderBy('updated_at', 'desc')->get();
+    }
+
+    /**
+     * Delete the customers addresses
+     * using the id provided
+     */
+    public function deleteCustomerAttributes(int $id): void
+    {
+        CustomerAddress::where('customer_id', $id)->delete();
     }
 
     /**
      * delete a specific customer
      * using a provided id
-     *
-     * @param int customer id
-     * @return array resopnse
      */
-    public function delete( $id )
+    public function delete(int|Customer $id): array
     {
         /**
-         * @todo dispatch event while
-         * deleting a customer
-         * @todo check if the action is performed by
          * an authorized user
          */
-        $customer = Customer::find( $id );
+        if ($id instanceof Customer) {
+            $customer = $id;
+        } else {
+            $customer = Customer::find($id);
 
-        if ( ! $customer instanceof Customer ) {
-            throw new NotFoundException( __( 'Unable to find the customer using the provided id.' ) );
+            if (! $customer instanceof Customer) {
+                throw new NotFoundException(__('Unable to find the customer using the provided id.'));
+            }
         }
 
-        Customer::find( $id )->delete();
-        CustomerAddress::where( 'customer_id', $id )->delete();
+        CustomerBeforeDeletedEvent::dispatch($customer);
+
+        $customer->delete();
 
         return [
             'status' => 'success',
-            'message' => __( 'The customer has been deleted.' ),
+            'message' => __('The customer has been deleted.'),
         ];
     }
 
-    public function precheckCustomers( $fields, $id = null )
+    /**
+     * Search customers having the defined argument.
+     */
+    public function search(int|string $argument): Collection
     {
-        if ( $id === null ) {
+        $customers = Customer::with('billing')
+            ->with('shipping')
+            ->orWhere('first_name', 'like', '%' . $argument . '%')
+            ->orWhere('last_name', 'like', '%' . $argument . '%')
+            ->orWhere('email', 'like', '%' . $argument . '%')
+            ->orWhere('phone', 'like', '%' . $argument . '%')
+            ->limit(10)
+            ->get();
+
+        return $customers;
+    }
+
+    public function precheckCustomers(array $fields, $id = null): void
+    {
+        if ($id === null) {
             /**
              * Let's find if a similar customer exist with
              * the provided email
              */
-            $customer = Customer::byEmail( $fields[ 'email' ] )->first();
+            $customer = Customer::byEmail($fields[ 'email' ])->first();
         } else {
             /**
              * Let's find if a similar customer exist with
              * the provided  and which is not the actula customer.
              */
-            $customer = Customer::byEmail( $fields[ 'email' ] )
-                ->where( 'id', '<>', $id )
+            $customer = Customer::byEmail($fields[ 'email' ])
+                ->where('nexopos_users.id', '<>', $id)
                 ->first();
         }
 
-        if ( $customer instanceof Customer && ! empty( $fields[ 'email' ] ) && ns()->option->get( 'ns_customers_force_unique_phone' ) === 'yes' ) {
-            throw new NotAllowedException( sprintf( __( 'The email "%s" is already stored on another customer informations.' ), $fields[ 'email' ] ) );
+        if ($customer instanceof Customer && ! empty($fields[ 'email' ])) {
+            throw new NotAllowedException(sprintf(__('The email "%s" is already used for another customer.'), $fields[ 'email' ]));
         }
     }
 
     /**
-     * Create customer fields
-     *
-     * @param array fields
-     * @return array response
+     * Create customer fields.
      */
-    public function create( $fields )
+    public function create(array $fields): array
     {
-        $this->precheckCustomers( $fields );
+        $this->precheckCustomers($fields);
 
         /**
          * saving a customer
@@ -130,8 +157,8 @@ class CustomerService
          */
         $customer = new Customer;
 
-        foreach ( $fields as $field => $value ) {
-            if ( $field !== 'address' ) {
+        foreach ($fields as $field => $value) {
+            if ($field !== 'address') {
                 $customer->$field = $value;
             }
         }
@@ -145,15 +172,15 @@ class CustomerService
          */
         $address = $fields[ 'address' ];
 
-        if ( is_array( $address ) ) {
-            foreach ( $address as $type => $fields ) {
-                if ( in_array( $type, [ 'billing', 'shipping' ] ) ) {
+        if (is_array($address)) {
+            foreach ($address as $type => $fields) {
+                if (in_array($type, [ 'billing', 'shipping' ])) {
                     $customerAddress = new CustomerAddress;
                     $customerAddress->type = $type;
                     $customerAddress->author = Auth::id();
                     $customerAddress->customer_id = $customer->id;
 
-                    foreach ( $fields as $field => $value ) {
+                    foreach ($fields as $field => $value) {
                         $customerAddress->$field = $value;
                     }
 
@@ -167,31 +194,27 @@ class CustomerService
 
         return [
             'status' => 'success',
-            'message' => __( 'The customer has been created.' ),
-            'data' => compact( 'customer' ),
+            'message' => __('The customer has been created.'),
+            'data' => compact('customer'),
         ];
     }
 
     /**
      * Update a specific customer
-     * using a provided informations
-     *
-     * @param int customer id
-     * @param array data
-     * @return array response
+     * using a provided informations.
      */
-    public function update( $id, array $fields )
+    public function update(int $id, array $fields): array
     {
-        $customer = Customer::find( $id );
+        $customer = Customer::find($id);
 
-        if ( ! $customer instanceof Customer ) {
-            throw new NotFoundException( __( 'Unable to find the customer using the provided ID.' ) );
+        if (! $customer instanceof Customer) {
+            throw new NotFoundException(__('Unable to find the customer using the provided ID.'));
         }
 
-        $this->precheckCustomers( $fields, $id );
+        $this->precheckCustomers($fields, $id);
 
-        foreach ( $fields as $field => $value ) {
-            if ( $field !== 'address' ) {
+        foreach ($fields as $field => $value) {
+            if ($field !== 'address') {
                 $customer->$field = $value;
             }
         }
@@ -205,21 +228,21 @@ class CustomerService
          */
         $address = $fields[ 'address' ];
 
-        if ( is_array( $address ) ) {
-            foreach ( $address as $type => $addressFields ) {
-                if ( in_array( $type, [ 'billing', 'shipping' ] ) ) {
-                    $customerAddress = CustomerAddress::from( $customer, $type )->first();
+        if (is_array($address)) {
+            foreach ($address as $type => $addressFields) {
+                if (in_array($type, [ 'billing', 'shipping' ])) {
+                    $customerAddress = CustomerAddress::from($customer, $type)->first();
 
                     /**
                      * If the customer address type has
                      * already been saved before
                      */
-                    if ( $customerAddress instanceof CustomerAddress ) {
+                    if ($customerAddress instanceof CustomerAddress) {
                         $customerAddress->type = $type;
                         $customerAddress->author = Auth::id();
                         $customerAddress->customer_id = $customer->id;
 
-                        foreach ( $addressFields as $field => $value ) {
+                        foreach ($addressFields as $field => $value) {
                             $customerAddress->$field = $value;
                         }
 
@@ -230,7 +253,7 @@ class CustomerService
                         $customerAddress->author = Auth::id();
                         $customerAddress->customer_id = $customer->id;
 
-                        foreach ( $addressFields as $field => $value ) {
+                        foreach ($addressFields as $field => $value) {
                             $customerAddress->$field = $value;
                         }
 
@@ -245,66 +268,56 @@ class CustomerService
 
         return [
             'status' => 'success',
-            'message' => __( 'The customer has been edited.' ),
-            'data' => compact( 'customer' ),
+            'message' => __('The customer has been edited.'),
+            'data' => compact('customer'),
         ];
     }
 
     /**
      * get customers addresses
-     *
-     * @param int customer id
-     * @return array
      */
-    public function getCustomerAddresses( $id )
+    public function getCustomerAddresses(int $id): Collection
     {
-        $customer = $this->get( $id );
+        $customer = $this->get($id);
 
         return $customer->addresses;
     }
 
     /**
      * Delete a specific customer
-     * who use the provided email
-     *
-     * @param string email
-     * @return array response
+     * havign the defined email
      */
-    public function deleteUsingEmail( $email )
+    public function deleteUsingEmail(string $email): array
     {
-        $customer = Customer::byEmail( $email )->first();
+        $customer = Customer::byEmail($email)->first();
 
-        if ( ! $customer instanceof Customer ) {
-            throw new NotFoundException( __( 'Unable to find the customer using the provided email.' ) );
+        if (! $customer instanceof Customer) {
+            throw new NotFoundException(__('Unable to find the customer using the provided email.'));
         }
 
-        CustomerAddress::where( 'customer_id', $customer->id )->delete();
+        CustomerAddress::where('customer_id', $customer->id)->delete();
         $customer->delete();
 
         return [
             'status' => 'success',
-            'message' => __( 'The customer has been deleted.' ),
+            'message' => __('The customer has been deleted.'),
         ];
     }
 
     /**
-     * save customer transaction
-     *
-     * @param string operation
-     * @param int amount
-     * @return array
+     * save a customer transaction.
      */
-    public function saveTransaction( Customer $customer, $operation, $amount, $description = '', $details = [] )
+    public function saveTransaction(Customer $customer, string $operation, float $amount, string $description = '', array $details = []): array
     {
-        if ( in_array( $operation, [
+        if (in_array($operation, [
             CustomerAccountHistory::OPERATION_DEDUCT,
             CustomerAccountHistory::OPERATION_PAYMENT,
-        ]) && $customer->account_amount - $amount < 0 ) {
-            throw new NotAllowedException( sprintf(
-                __( 'Not enough credits on the customer account. Requested : %s, Remaining: %s.' ),
-                Currency::fresh( abs( $amount ) ),
-                Currency::fresh( $customer->account_amount ),
-            ) );
+        ]) && $customer->account_amount - $amount < 0) {
+            throw new NotAllowedException(sprintf(
+                __('Not enough credits on the customer account. Requested : %s, Remaining: %s.'),
+                Currency::fresh(abs($amount)),
+                Currency::fresh($customer->account_amount),
+            ));
         }
 
         /**
@@ -312,8 +325,8 @@ class CustomerService
          * and base on that we'll populate the
          * previous_amount
          */
-        $beforeRecord = CustomerAccountHistory::where( 'customer_id', $customer->id )
-            ->orderBy( 'id', 'desc' )
+        $beforeRecord = CustomerAccountHistory::where('customer_id', $customer->id)
+            ->orderBy('id', 'desc')
             ->first();
 
         $previousNextAmount = $beforeRecord instanceof CustomerAccountHistory ? $beforeRecord->next_amount : 0;
@@ -321,15 +334,15 @@ class CustomerService
         /**
          * We'll make sure to define that are the previous and next amount.
          */
-        if ( in_array( $operation, [
+        if (in_array($operation, [
             CustomerAccountHistory::OPERATION_DEDUCT,
             CustomerAccountHistory::OPERATION_PAYMENT,
-        ] ) ) {
+        ])) {
             $next_amount = $previousNextAmount - $amount;
-        } elseif ( in_array( $operation, [
+        } elseif (in_array($operation, [
             CustomerAccountHistory::OPERATION_ADD,
             CustomerAccountHistory::OPERATION_REFUND,
-        ]) ) {
+        ])) {
             $next_amount = $previousNextAmount + $amount;
         }
 
@@ -346,18 +359,18 @@ class CustomerService
          * We can now optionally provide
          * additional details while storing the customer history
          */
-        if ( ! empty( $details ) ) {
-            foreach ( $details as $key => $value ) {
+        if (! empty($details)) {
+            foreach ($details as $key => $value) {
                 /**
                  * Some details must be sensitive
                  * and not changed.
                  */
-                if ( ! in_array( $key, [
+                if (! in_array($key, [
                     'id',
                     'next_amount',
                     'previous_amount',
                     'amount',
-                ]) ) {
+                ])) {
                     $customerAccountHistory->$key = $value;
                 }
             }
@@ -365,56 +378,59 @@ class CustomerService
 
         $customerAccountHistory->save();
 
-        event( new AfterCustomerAccountHistoryCreatedEvent( $customerAccountHistory ) );
+        event(new AfterCustomerAccountHistoryCreatedEvent($customerAccountHistory));
 
         return [
             'status' => 'success',
-            'message' => __( 'The customer account has been updated.' ),
-            'data' => compact( 'customerAccountHistory' ),
+            'message' => __('The customer account has been updated.'),
+            'data' => compact('customerAccountHistory'),
         ];
     }
 
-    public function updateCustomerAccount( CustomerAccountHistory $history )
+    /**
+     * Updates the customers account.
+     */
+    public function updateCustomerAccount(CustomerAccountHistory $history): void
     {
-        if ( in_array( $history->operation, [
+        if (in_array($history->operation, [
             CustomerAccountHistory::OPERATION_DEDUCT,
             CustomerAccountHistory::OPERATION_PAYMENT,
-        ] ) ) {
+        ])) {
             $history->customer->account_amount -= $history->amount;
-        } elseif ( in_array( $history->operation, [
+        } elseif (in_array($history->operation, [
             CustomerAccountHistory::OPERATION_ADD,
             CustomerAccountHistory::OPERATION_REFUND,
-        ]) ) {
+        ])) {
             $history->customer->account_amount += $history->amount;
         }
 
         $history->customer->save();
     }
 
-    public function increasePurchases( Customer $customer, $value )
+    public function increasePurchases(Customer $customer, $value)
     {
         $customer->purchases_amount += $value;
         $customer->save();
 
-        CustomerAfterUpdatedEvent::dispatch( $customer );
+        CustomerAfterUpdatedEvent::dispatch($customer);
 
         return $customer;
     }
 
-    public function decreasePurchases( Customer $customer, $value )
+    public function decreasePurchases(Customer $customer, $value)
     {
         $customer->purchases_amount -= $value;
         $customer->save();
 
-        CustomerAfterUpdatedEvent::dispatch( $customer );
+        CustomerAfterUpdatedEvent::dispatch($customer);
 
         return $customer;
     }
 
-    public function canReduceCustomerAccount( Customer $customer, $value )
+    public function canReduceCustomerAccount(Customer $customer, $value)
     {
-        if ( $customer->account_amount - $value < 0 ) {
-            throw new NotAllowedException( __( 'The customer account doesn\'t have enough funds to proceed.' ) );
+        if ($customer->account_amount - $value < 0) {
+            throw new NotAllowedException(__('The customer account doesn\'t have enough funds to proceed.'));
         }
     }
 
@@ -424,23 +440,33 @@ class CustomerService
      *
      * @return void
      */
-    public function computeReward( Order $order )
+    public function computeReward(Order $order)
     {
+        $order->load('customer.group.reward');
+
+        /**
+         * if the customer is not assigned to a valid customer group,
+         * the reward will not be computed.
+         */
+        if (! $order->customer->group instanceof CustomerGroup) {
+            return;
+        }
+
         $reward = $order->customer->group->reward;
 
-        if ( $reward instanceof RewardSystem ) {
+        if ($reward instanceof RewardSystem) {
             $points = 0;
-            $reward->rules->each( function ( $rule ) use ( $order, &$points ) {
-                if ( $order->total >= $rule->from && $order->total <= $rule->to ) {
+            $reward->rules->each(function ($rule) use ($order, &$points) {
+                if ($order->total >= $rule->from && $order->total <= $rule->to) {
                     $points += (float) $rule->reward;
                 }
             });
 
-            $currentReward = CustomerReward::where( 'reward_id', $reward->id )
-                ->where( 'customer_id', $order->customer->id )
+            $currentReward = CustomerReward::where('reward_id', $reward->id)
+                ->where('customer_id', $order->customer->id)
                 ->first();
 
-            if ( ! $currentReward instanceof CustomerReward ) {
+            if (! $currentReward instanceof CustomerReward) {
                 $currentReward = new CustomerReward;
                 $currentReward->customer_id = $order->customer->id;
                 $currentReward->reward_id = $reward->id;
@@ -451,49 +477,50 @@ class CustomerService
 
             $currentReward->points += $points;
             $currentReward->save();
+            $currentReward->load('reward');
 
-            CustomerRewardAfterCreatedEvent::dispatch( $currentReward, $order->customer, $reward );
+            CustomerRewardAfterCreatedEvent::dispatch($currentReward, $order->customer, $reward);
         }
     }
 
-    public function applyReward( CustomerReward $customerReward, Customer $customer, RewardSystem $reward )
+    public function applyReward(CustomerReward $customerReward, Customer $customer, RewardSystem $reward)
     {
         /**
          * the user has reached or exceeded the reward.
          * we'll issue a new coupon and update the customer
          * point counter
          */
-        if ( $customerReward->points >= $customerReward->target ) {
+        if ($customerReward->points >= $customerReward->target) {
             $coupon = $reward->coupon;
 
-            if ( $coupon instanceof Coupon ) {
+            if ($coupon instanceof Coupon) {
                 $customerCoupon = new CustomerCoupon;
                 $customerCoupon->coupon_id = $coupon->id;
                 $customerCoupon->name = $coupon->name;
                 $customerCoupon->active = true;
-                $customerCoupon->code = $coupon->code . '-' . ns()->date->format( 'dmi' );
+                $customerCoupon->code = $coupon->code . '-' . ns()->date->format('dmi');
                 $customerCoupon->customer_id = $customer->id;
                 $customerCoupon->limit_usage = $coupon->limit_usage;
-                $customerCoupon->author = 0;
+                $customerCoupon->author = $customerReward->reward->author;
                 $customerCoupon->save();
 
-                $customerReward->points = abs( $customerReward->points - $customerReward->target );
+                $customerReward->points = abs($customerReward->points - $customerReward->target);
                 $customerReward->save();
 
-                CustomerRewardAfterCouponIssuedEvent::dispatch( $customerCoupon );
+                CustomerRewardAfterCouponIssuedEvent::dispatch($customerCoupon);
             } else {
                 /**
                  * @var NotificationService
                  */
-                $notify = app()->make( NotificationService::class );
+                $notify = app()->make(NotificationService::class);
                 $notify->create([
-                    'title' => __( 'Issuing Coupon Failed' ),
+                    'title' => __('Issuing Coupon Failed'),
                     'description' => sprintf(
-                        __( 'Unable to apply a coupon attached to the reward "%s". It looks like the coupon no more exists.' ),
+                        __('Unable to apply a coupon attached to the reward "%s". It looks like the coupon no more exists.'),
                         $reward->name
                     ),
                     'identifier' => 'coupon-issuing-issue-' . $reward->id,
-                    'url' => ns()->route( 'ns.dashboard.rewards-edit', [ 'reward' => $reward->id ]),
+                    'url' => ns()->route('ns.dashboard.rewards-edit', [ 'reward' => $reward->id ]),
                 ])->dispatchForGroupNamespaces([ 'admin', 'nexopos.store.administrator' ]);
             }
         }
@@ -503,94 +530,94 @@ class CustomerService
      * load specific coupon using a code and optionnaly
      * the customer id for verification purpose.
      *
-     * @param string $code
      * @param string $customer_id
      * @return array
      */
-    public function loadCoupon( $code, $customer_id = null )
+    public function loadCoupon(string $code, $customer_id = null)
     {
-        $coupon = CustomerCoupon::code( $code )
-            ->with( 'coupon.products.product' )
-            ->with( 'coupon.categories.category' )
+        $coupon = Coupon::code($code)
+            ->with('products.product')
+            ->with('categories.category')
+            ->with('customers')
+            ->with([ 'customerCoupon' => function ($query) use ($customer_id) {
+                $query->where('customer_id', $customer_id);
+            }])
+            ->with('groups')
             ->first();
 
-        if ( $coupon instanceof CustomerCoupon ) {
-            if ( ! $coupon->active ) {
-                throw new Exception( __( 'The request coupon no longer be used as it\'s no more active.' ) );
+        if ($coupon instanceof Coupon) {
+            if ($coupon->customers()->count() > 0) {
+                $customers_id = $coupon->customers()
+                    ->get('customer_id')
+                    ->map(fn($coupon) => $coupon->customer_id)
+                    ->flatten()
+                    ->toArray();
+
+                if (! in_array($customer_id, $customers_id)) {
+                    throw new Exception(__('The provided coupon cannot be loaded for that customer.'));
+                }
             }
 
-            if ( $coupon->customer_id !== 0 ) {
-                if ( $customer_id === null ) {
-                    throw new Exception( __( 'The coupon is issued for a customer.' ) );
-                }
+            if ($coupon->groups()->count() > 0) {
+                $customer = Customer::with('group')->find($customer_id);
+                $groups_id = $coupon->groups()
+                    ->get('group_id')
+                    ->map(fn($coupon) => $coupon->group_id)
+                    ->flatten()
+                    ->toArray();
 
-                if ( (int) $coupon->customer_id !== (int) $customer_id ) {
-                    throw new Exception( __( 'The coupon is not issued for the selected customer.' ) );
+                if (! in_array($customer->group->id, $groups_id)) {
+                    throw new Exception(__('The provided coupon cannot be loaded for the group assigned to the selected customer.'));
                 }
             }
 
             return $coupon;
         }
 
-        throw new Exception( __( 'Unable to find a coupon with the provided code.' ) );
+        throw new Exception(__('Unable to find a coupon with the provided code.'));
     }
 
-    public function setCoupon( $fields, Coupon $coupon )
+    /**
+     * @todo this method doesn't seems used.
+     */
+    public function setCouponHistory($fields, Coupon $coupon)
     {
-        $customerCoupon = CustomerCoupon::where([
-            'coupon_id' => $coupon->id,
-        ])->get();
+        $customerCoupon = new CustomerCoupon;
+        $customerCoupon->name = $coupon->name;
+        $customerCoupon->limit_usage = $coupon->limit_usage;
+        $customerCoupon->code = $coupon->code;
+        $customerCoupon->coupon_id = $coupon->id;
+        $customerCoupon->customer_id = $fields[ 'customer_id' ];
+        $customerCoupon->order_id = $fields[ 'order_id' ];
+        $customerCoupon->author = Auth::id();
+        $customerCoupon->save();
 
-        if ( $customerCoupon->count() === 0 ) {
-            $customerCoupon = new CustomerCoupon;
-            $customerCoupon->name = $coupon->name;
-            $customerCoupon->limit_usage = $coupon->limit_usage;
-            $customerCoupon->code = $coupon->code;
-            $customerCoupon->coupon_id = $coupon->id;
-            $customerCoupon->customer_id = 0; // $fields[ 'customer_id' ];
-            $customerCoupon->author = Auth::id();
-            $customerCoupon->save();
-
-            $this->setActiveStatus( $customerCoupon );
-        } else {
-            $customerCoupon
-                ->each( function ( $customerCoupon ) use ( $coupon  ) {
-                    $customerCoupon->name = $coupon->name;
-                    $customerCoupon->limit_usage = $coupon->limit_usage;
-                    $customerCoupon->code = $coupon->code;
-                    $customerCoupon->coupon_id = $coupon->id;
-                    $customerCoupon->customer_id = 0; // $fields[ 'general' ][ 'customer_id' ];
-                    $customerCoupon->author = Auth::id();
-                    $customerCoupon->save();
-
-                    $this->setActiveStatus( $customerCoupon );
-                });
-        }
+        $this->setActiveStatus($customerCoupon);
 
         return [
             'status' => 'sucess',
-            'message' => __( 'The coupon has been updated.' ),
+            'message' => __('The coupon has been updated.'),
         ];
     }
 
-    public function setActiveStatus( CustomerCoupon $coupon )
+    public function setActiveStatus(CustomerCoupon $coupon)
     {
-        if ( $coupon->limit_usage > $coupon->usage ) {
+        if ($coupon->limit_usage > $coupon->usage) {
             $coupon->active = true;
         }
 
-        if ( (int) $coupon->limit_usage === 0 ) {
+        if ((int) $coupon->limit_usage === 0) {
             $coupon->active = true;
         }
 
         $coupon->save();
     }
 
-    public function deleteRelatedCustomerCoupon( Coupon $coupon )
+    public function deleteRelatedCustomerCoupon(Coupon $coupon)
     {
-        CustomerCoupon::couponID( $coupon->id )
+        CustomerCoupon::couponID($coupon->id)
             ->get()
-            ->each( function ( $coupon ) {
+            ->each(function ($coupon) {
                 $coupon->delete();
             });
     }
@@ -599,23 +626,23 @@ class CustomerService
      * Will refresh the owed amount
      * for the provided customer
      */
-    public function updateCustomerOwedAmount( Customer $customer )
+    public function updateCustomerOwedAmount(Customer $customer)
     {
-        $unpaid = Order::where( 'customer_id', $customer->id )->whereIn( 'payment_status', [
+        $unpaid = Order::where('customer_id', $customer->id)->whereIn('payment_status', [
             Order::PAYMENT_UNPAID,
-        ])->sum( 'total' );
+        ])->sum('total');
 
         /**
          * Change here will be negative, so we
          * want to be an absolute value.
          */
-        $orders = Order::where( 'customer_id', $customer->id )->whereIn( 'payment_status', [
+        $orders = Order::where('customer_id', $customer->id)->whereIn('payment_status', [
             Order::PAYMENT_PARTIALLY,
         ]);
 
-        $change = abs( $orders->sum( 'change' ) );
+        $change = abs($orders->sum('change'));
 
-        $customer->owed_amount = ns()->currency->getRaw( $unpaid + $change );
+        $customer->owed_amount = ns()->currency->getRaw($unpaid + $change);
         $customer->save();
     }
 
@@ -627,17 +654,17 @@ class CustomerService
      * @param array $group
      * @return array $response
      */
-    public function createGroup( $fields, CustomerGroup $group = null )
+    public function createGroup($fields, ?CustomerGroup $group = null)
     {
-        if ( $group === null ) {
-            $group = CustomerGroup::where( 'name', $fields[ 'name' ] )->first();
+        if ($group === null) {
+            $group = CustomerGroup::where('name', $fields[ 'name' ])->first();
         }
 
-        if ( ! $group instanceof CustomerGroup ) {
+        if (! $group instanceof CustomerGroup) {
             $group = new CustomerGroup;
         }
 
-        foreach ( $fields as $name => $value ) {
+        foreach ($fields as $name => $value) {
             $group->$name = $value;
         }
 
@@ -646,8 +673,8 @@ class CustomerService
 
         return [
             'status' => 'sucecss',
-            'message' => __( 'The group has been created.' ),
-            'data' => compact( 'group' ),
+            'message' => __('The group has been created.'),
+            'data' => compact('group'),
         ];
     }
 
@@ -657,18 +684,18 @@ class CustomerService
      * @param string $label
      * @return string
      */
-    public function getCustomerAccountOperationLabel( $label )
+    public function getCustomerAccountOperationLabel($label)
     {
-        switch ( $label ) {
-            case CustomerAccountHistory::OPERATION_ADD: return __( 'Crediting' );
+        switch ($label) {
+            case CustomerAccountHistory::OPERATION_ADD: return __('Crediting');
                 break;
-            case CustomerAccountHistory::OPERATION_DEDUCT: return __( 'Deducting' );
+            case CustomerAccountHistory::OPERATION_DEDUCT: return __('Deducting');
                 break;
-            case CustomerAccountHistory::OPERATION_PAYMENT: return __( 'Order Payment' );
+            case CustomerAccountHistory::OPERATION_PAYMENT: return __('Order Payment');
                 break;
-            case CustomerAccountHistory::OPERATION_REFUND: return __( 'Order Refund' );
+            case CustomerAccountHistory::OPERATION_REFUND: return __('Order Refund');
                 break;
-            default: return __( 'Unknown Operation' );
+            default: return __('Unknown Operation');
                 break;
         }
     }
@@ -677,15 +704,198 @@ class CustomerService
      * Will increase the customer purchase
      * when an order is flagged as paid
      */
-    public function increaseCustomerPurchase( Order $order )
+    public function increaseCustomerPurchase(Order $order)
     {
-        if ( in_array( $order->payment_status, [
+        if (in_array($order->payment_status, [
             Order::PAYMENT_PAID,
-        ]) ) {
+        ])) {
             $this->increasePurchases(
-                $order->customer,
-                $order->total
+                customer: $order->customer,
+                value: $order->total
             );
         }
+    }
+
+    /**
+     * If a customer tries to use a coupon. That coupon is assigned to his account
+     * with the rule defined by the parent coupon.
+     */
+    public function assignCouponUsage(int $customer_id, Coupon $coupon): CustomerCoupon
+    {
+        $customerCoupon = CustomerCoupon::where('customer_id', $customer_id)->where('coupon_id', $coupon->id)->first();
+
+        if (! $customerCoupon instanceof CustomerCoupon) {
+            $customerCoupon = new CustomerCoupon;
+            $customerCoupon->customer_id = $customer_id;
+            $customerCoupon->coupon_id = $coupon->id;
+            $customerCoupon->name = $coupon->name;
+            $customerCoupon->author = $coupon->author;
+            $customerCoupon->active = true;
+            $customerCoupon->code = $coupon->code;
+            $customerCoupon->limit_usage = $coupon->limit_usage;
+            $customerCoupon->save();
+        }
+
+        return $customerCoupon;
+    }
+
+    public function checkCouponExistence(array $couponConfig, $fields): Coupon
+    {
+        $coupon = Coupon::find($couponConfig[ 'coupon_id' ]);
+
+        if (! $coupon instanceof Coupon) {
+            throw new NotFoundException(sprintf(__('Unable to find a reference to the attached coupon : %s'), $couponConfig[ 'name' ] ?? __('N/A')));
+        }
+
+        /**
+         * we'll check if the coupon is still valid.
+         */
+        if ($coupon->valid_until !== null && ns()->date->lessThan(Carbon::parse($coupon->valid_until))) {
+            throw new NotAllowedException(sprintf(__('Unable to use the coupon %s as it has expired.'), $coupon->name));
+        }
+
+        /**
+         * @todo check products on the order
+         * @todo check category on the order
+         */
+
+        /**
+         * We'll now check if we're about to use
+         * the coupon during a period is supposed to be active.
+         *
+         * @todo Well we're doing this because we don't yet have a proper time picker. As we're using a date time picker
+         * we're extracting the hours from it :(.
+         */
+        $hourStarts = ! empty($coupon->valid_hours_start) ? Carbon::parse($coupon->valid_hours_start)->format('H:i') : null;
+        $hoursEnds = ! empty($coupon->valid_hours_end) ? Carbon::parse($coupon->valid_hours_end)->format('H:i') : null;
+
+        if (
+            $hourStarts !== null &&
+            $hoursEnds !== null) {
+            $todayStartDate = ns()->date->format('Y-m-d') . ' ' . $hourStarts;
+            $todayEndDate = ns()->date->format('Y-m-d') . ' ' . $hoursEnds;
+
+            if (
+                ns()->date->between(
+                    date1: Carbon::parse($todayStartDate),
+                    date2: Carbon::parse($todayEndDate)
+                )
+            ) {
+                throw new NotAllowedException(sprintf(__('Unable to use the coupon %s at this moment.'), $coupon->name));
+            }
+        }
+
+        /**
+         * We'll now check if the customer has an ongoing
+         * coupon with the provided parameters
+         */
+        $customerCoupon = CustomerCoupon::where('coupon_id', $couponConfig[ 'coupon_id' ])
+            ->where('customer_id', $fields[ 'customer_id' ] ?? 0)
+            ->first();
+
+        if ($customerCoupon instanceof CustomerCoupon) {
+            if (! $customerCoupon->active) {
+                throw new NotAllowedException(sprintf(__('You\'re not allowed to use this coupon as it\'s no longer active')));
+            }
+
+            /**
+             * We're trying to use a coupon that is already exhausted
+             * this should be prevented here.
+             */
+            if ($customerCoupon->limit_usage > 0 && $customerCoupon->usage + 1 > $customerCoupon->limit_usage) {
+                throw new NotAllowedException(sprintf(__('You\'re not allowed to use this coupon it has reached the maximum usage allowed.')));
+            }
+        }
+
+        return $coupon;
+    }
+
+    /**
+     * Will check if a coupon is a eligible for an increase
+     * and will perform a usage increase.
+     */
+    public function increaseCouponUsage(CustomerCoupon $customerCoupon)
+    {
+        if ($customerCoupon->limit_usage > 0) {
+            if ($customerCoupon->usage + 1 < $customerCoupon->limit_usage) {
+                $customerCoupon->usage += 1;
+                $customerCoupon->save();
+            } elseif ($customerCoupon->usage + 1 === $customerCoupon->limit_usage) {
+                $customerCoupon->usage += 1;
+                $customerCoupon->active = false;
+                $customerCoupon->save();
+            }
+        }
+    }
+
+    /**
+     * returns address fields and will attempt
+     * filling those field with the resource provided.
+     */
+    public function getAddressFields($model = null): array
+    {
+        return [
+            [
+                'type' => 'text',
+                'name' => 'first_name',
+                'value' => $model->first_name ?? '',
+                'label' => __('First Name'),
+                'description' => __('Provide the billing first name.'),
+            ], [
+                'type' => 'text',
+                'name' => 'last_name',
+                'value' => $model->last_name ?? '',
+                'label' => __('Last Name'),
+                'description' => __('Provide the billing last name.'),
+            ], [
+                'type' => 'text',
+                'name' => 'phone',
+                'value' => $model->phone ?? '',
+                'label' => __('Phone'),
+                'description' => __('Billing phone number.'),
+            ], [
+                'type' => 'text',
+                'name' => 'address_1',
+                'value' => $model->address_1 ?? '',
+                'label' => __('Address 1'),
+                'description' => __('Billing First Address.'),
+            ], [
+                'type' => 'text',
+                'name' => 'address_2',
+                'value' => $model->address_2 ?? '',
+                'label' => __('Address 2'),
+                'description' => __('Billing Second Address.'),
+            ], [
+                'type' => 'text',
+                'name' => 'country',
+                'value' => $model->country ?? '',
+                'label' => __('Country'),
+                'description' => __('Billing Country.'),
+            ], [
+                'type' => 'text',
+                'name' => 'city',
+                'value' => $model->city ?? '',
+                'label' => __('City'),
+                'description' => __('City'),
+            ], [
+                'type' => 'text',
+                'name' => 'pobox',
+                'value' => $model->pobox ?? '',
+                'label' => __('PO.Box'),
+                'description' => __('Postal Address'),
+            ], [
+                'type' => 'text',
+                'name' => 'company',
+                'value' => $model->company ?? '',
+                'label' => __('Company'),
+                'description' => __('Company'),
+            ], [
+                'type' => 'text',
+                'name' => 'email',
+                'value' => $model->email ?? '',
+                'label' => __('Email'),
+                'description' => __('Email'),
+            ],
+        ];
     }
 }

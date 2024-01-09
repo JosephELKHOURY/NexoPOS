@@ -2,7 +2,13 @@
 
 namespace App\Models;
 
-use Doctrine\DBAL\Query\QueryBuilder;
+use App\Events\ProductAfterCreatedEvent;
+use App\Events\ProductAfterDeleteEvent;
+use App\Events\ProductAfterUpdatedEvent;
+use App\Events\ProductBeforeCreatedEvent;
+use App\Events\ProductBeforeDeleteEvent;
+use App\Events\ProductBeforeUpdatedEvent;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
@@ -13,7 +19,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  * @property float $tax_value
  * @property string $product_type
  * @property string $type
- * @property string $accurate_tracking
+ * @property bool $accurate_tracking
+ * @property bool $auto_cogs
  * @property string $status
  * @property string $stock_management Can either be "enabled" or "disabled"
  * @property string $barcode
@@ -30,6 +37,27 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
  * @property int $author
  * @property string $uuid
  * @property TaxGroup $tax_group
+ *
+ * @method static Builder trackingEnabled()
+ * @method static Builder trackingDisabled()
+ * @method static Builder findUsingBarcode( $barcode )
+ * @method static Builder barcode( $barcode )
+ * @method static Builder sku( $sku )
+ * @method static Builder onSale()
+ * @method static Builder hidden()
+ * @method static Builder findUsingSKU( $sku )
+ * @method static Builder onlyVariations()
+ * @method static Builder excludeVariations()
+ * @method static Builder withStockEnabled()
+ * @method static Builder withStockDisabled()
+ * @method static Builder accurateTracking( $argument = true )
+ * @method static Builder searchable( $attribute = true )
+ * @method static Builder type( $type )
+ * @method static Builder notGrouped()
+ * @method static Builder grouped()
+ * @method static Builder isGroup()
+ * @method static Builder notInGroup()
+ * @method static Builder inGroup()
  */
 class Product extends NsModel
 {
@@ -55,8 +83,18 @@ class Product extends NsModel
 
     protected $table = 'nexopos_' . 'products';
 
-    protected $cats = [
+    protected $casts = [
         'accurate_tracking' => 'boolean',
+        'auto_cogs' => 'boolean',
+    ];
+
+    protected $dispatchesEvents = [
+        'creating' => ProductBeforeCreatedEvent::class,
+        'created' => ProductAfterCreatedEvent::class,
+        'updating' => ProductBeforeUpdatedEvent::class,
+        'updated' => ProductAfterUpdatedEvent::class,
+        'deleting' => ProductBeforeDeleteEvent::class,
+        'deleted' => ProductAfterDeleteEvent::class,
     ];
 
     /**
@@ -74,218 +112,272 @@ class Product extends NsModel
 
     public function category()
     {
-        return $this->belongsTo( ProductCategory::class, 'category_id', 'id' );
+        return $this->belongsTo(ProductCategory::class, 'category_id', 'id');
     }
 
     /**
      * get products having accurate tracking enabled
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeTrackingEnabled( $query )
+    public function scopeTrackingEnabled($query)
     {
-        return $query->where( 'accurate_tracking', true );
+        return $query->where('accurate_tracking', true);
     }
 
     /**
      * get products having accurate tracking enabled
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeType( $query, $type )
+    public function scopeType($query, $type)
     {
-        return $query->where( 'type', $type );
+        return $query->where('type', $type);
+    }
+
+    /**
+     * Add a scope that filter product
+     * that aren't grouped
+     */
+    public function scopeNotGrouped(Builder $query)
+    {
+        return $query->where('type', '!=', self::TYPE_GROUPED);
+    }
+
+    /**
+     * Filter products if they are grouped products.
+     */
+    public function scopeGrouped(Builder $query)
+    {
+        return $query->where('type', self::TYPE_GROUPED);
+    }
+
+    /**
+     * Filter products if they are grouped products.
+     *
+     * @alias scopeGrouped
+     */
+    public function scopeIsGroup(Builder $query)
+    {
+        return $query->where('type', self::TYPE_GROUPED);
+    }
+
+    /**
+     * Filter product that doesn't
+     * belong to a group
+     */
+    public function scopeNotInGroup(Builder $query)
+    {
+        $subItemsIds = ProductSubItem::get('id')->map(fn($entry) => $entry->id)->toArray();
+
+        return $query->whereNotIn('id', $subItemsIds);
+    }
+
+    /**
+     * Filter products that are
+     * included as a sub_items.
+     */
+    public function scopeInGroup(Builder $query)
+    {
+        $subItemsIds = ProductSubItem::get('id')->map(fn($entry) => $entry->id)->toArray();
+
+        return $query->whereIn('id', $subItemsIds);
     }
 
     /**
      * get products having accurate tracking disabled
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeTrackingDisabled( $query )
+    public function scopeTrackingDisabled($query)
     {
-        return $query->where( 'accurate_tracking', false );
+        return $query->where('accurate_tracking', false);
     }
 
     /**
      * get a product using a barcode
      *
-     * @param QueryBuilder
+     * @param Builder
      * @param string barcode
-     * @return QueryBuilder
+     * @return Builder
      */
-    public function scopeFindUsingBarcode( $query, $barcode )
+    public function scopeFindUsingBarcode($query, $barcode)
     {
-        return $query->where( 'barcode', $barcode );
+        return $query->where('barcode', $barcode);
     }
 
     /**
      * get a product using a barcode
      *
-     * @param QueryBuilder
+     * @param Builder
      * @param string barcode
-     * @return QueryBuilder
+     * @return Builder
      */
-    public function scopeBarcode( $query, $barcode )
+    public function scopeBarcode($query, $barcode)
     {
-        return $this->scopeFindUsingBarcode( $query, $barcode );
+        return $this->scopeFindUsingBarcode($query, $barcode);
     }
 
     /**
      * get a product using a barcode
      *
-     * @param QueryBuilder $query
+     * @param Builder $query
      * @param string $sku
-     * @return QueryBuilder
+     * @return Builder
      */
-    public function scopeSku( $query, $sku )
+    public function scopeSku($query, $sku)
     {
-        return $this->scopeFindUsingSKU( $query, $sku );
+        return $this->scopeFindUsingSKU($query, $sku);
     }
 
     /**
      * get products that are on sale.
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeOnSale( $query )
+    public function scopeOnSale($query)
     {
-        return $query->where( 'status', self::STATUS_AVAILABLE );
+        return $query->where('status', self::STATUS_AVAILABLE);
     }
 
     /**
      * get products that aren't on sale.
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeHidden( $query )
+    public function scopeHidden($query)
     {
-        return $query->where( 'status', self::STATUS_UNAVAILABLE );
+        return $query->where('status', self::STATUS_UNAVAILABLE);
     }
 
     /**
      * Filter a product using the SKU
      *
-     * @param QueryBuilder
+     * @param Builder
      * @param string sku
-     * @return QueryBuilder
+     * @return Builder
      */
-    public function scopeFindUsingSKU( $query, $sku )
+    public function scopeFindUsingSKU($query, $sku)
     {
-        return $query->where( 'sku', $sku );
+        return $query->where('sku', $sku);
     }
 
     public function unit_quantities()
     {
-        return $this->hasMany( ProductUnitQuantity::class, 'product_id' );
+        return $this->hasMany(ProductUnitQuantity::class, 'product_id');
     }
 
     public function unitGroup()
     {
-        return $this->hasOne( UnitGroup::class, 'id', 'unit_group' );
+        return $this->hasOne(UnitGroup::class, 'id', 'unit_group');
     }
 
     public function product_taxes()
     {
-        return $this->hasMany( ProductTax::class, 'product_id' );
+        return $this->hasMany(ProductTax::class, 'product_id');
     }
 
     public function tax_group()
     {
-        return $this->hasOne( TaxGroup::class, 'id', 'tax_group_id' );
+        return $this->hasOne(TaxGroup::class, 'id', 'tax_group_id');
     }
 
     public function variations()
     {
-        return $this->hasMany( Product::class, 'parent_id' );
+        return $this->hasMany(Product::class, 'parent_id');
     }
 
     public function galleries()
     {
-        return $this->hasMany( ProductGallery::class, 'product_id', 'id' );
+        return $this->hasMany(ProductGallery::class, 'product_id', 'id');
     }
 
     public function procurementHistory()
     {
-        return $this->hasMany( ProcurementProduct::class, 'product_id', 'id' );
+        return $this->hasMany(ProcurementProduct::class, 'product_id', 'id');
     }
 
     public function sub_items()
     {
-        return $this->hasMany( ProductSubItem::class, 'parent_id', 'id' );
+        return $this->hasMany(ProductSubItem::class, 'parent_id', 'id');
+    }
+
+    public function history()
+    {
+        return $this->hasMany(ProductHistory::class, 'product_id', 'id');
     }
 
     /**
      * Filter query by getting products that are variations
      *
-     * @param QueryBuilder $query
-     * @return QueryBuilder;
+     * @param Builder $query
+     * @return Builder;
      */
-    public function scopeOnlyVariations( $query )
+    public function scopeOnlyVariations($query)
     {
-        return $query->where( 'product_type', 'variation' );
+        return $query->where('product_type', 'variation');
     }
 
     /**
      * Filter query by getting products that aren't variations
      *
-     * @param QueryBuilder $query
-     * @return QueryBuilder;
+     * @param Builder $query
+     * @return Builder;
      */
-    public function scopeExcludeVariations( $query )
+    public function scopeExcludeVariations($query)
     {
-        return $query->where( 'product_type', '!=', 'variation' );
+        return $query->where('product_type', '!=', 'variation');
     }
 
     /**
      * Filter query by getting product with
      * stock management enabled
      *
-     * @param QueryBuilder $query
-     * @return QueryBuilder;
+     * @param Builder $query
+     * @return Builder;
      */
-    public function scopeWithStockEnabled( $query )
+    public function scopeWithStockEnabled($query)
     {
-        return $query->where( 'stock_management', Product::STOCK_MANAGEMENT_ENABLED );
+        return $query->where('stock_management', Product::STOCK_MANAGEMENT_ENABLED);
     }
 
     /**
      * Filter query by getting product with
      * stock management disabled
      *
-     * @param QueryBuilder $query
-     * @return QueryBuilder;
+     * @param Builder $query
+     * @return Builder;
      */
-    public function scopeWithStockDisabled( $query )
+    public function scopeWithStockDisabled($query)
     {
-        return $query->where( 'stock_management', Product::STOCK_MANAGEMENT_DISABLED );
+        return $query->where('stock_management', Product::STOCK_MANAGEMENT_DISABLED);
     }
 
     /**
      * Filter query by getitng product with
      * accurate stock enabled or not.
      *
-     * @param QueryBuilder $query
-     * @return QueryBuilder
+     * @param Builder $query
+     * @return Builder
      */
-    public function scopeAccurateTracking( $query, $argument = true )
+    public function scopeAccurateTracking($query, $argument = true)
     {
-        return $query->where( 'accurate_tracking', $argument );
+        return $query->where('accurate_tracking', $argument);
     }
 
     /**
      * Filter product that are searchable
      *
-     * @param QueryBuilder
-     * @return QueryBuilder
+     * @param Builder
+     * @return Builder
      */
-    public function scopeSearchable( $query, $attribute = true )
+    public function scopeSearchable($query, $attribute = true)
     {
-        return $query->where( 'searchable', $attribute );
+        return $query->where('searchable', $attribute);
     }
 }

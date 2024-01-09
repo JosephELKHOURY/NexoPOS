@@ -18,57 +18,59 @@ trait WithCustomerTest
 
     protected function attemptCreateCustomerGroup()
     {
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'POST', 'api/nexopos/v4/crud/ns.customers-groups', [
-                'name' => __( 'Base Customers' ),
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers-groups', [
+                'name' => __('Base Customers'),
                 'general' => [
-                    'reward_system_id' => $this->faker->randomElement( RewardSystem::get()->map( fn( $reward ) => $reward->id )->toArray() ),
+                    'reward_system_id' => $this->faker->randomElement(RewardSystem::get()->map(fn($reward) => $reward->id)->toArray()),
                 ],
             ]);
 
         $response->assertJson([
             'status' => 'success',
         ]);
+
+        return CustomerGroup::findOrFail($response->json()[ 'data' ][ 'entry' ][ 'id' ]);
     }
 
     protected function attemptRemoveCreditCustomerAccount()
     {
-        $customer = Customer::where( 'account_amount', 0 )
+        $customer = Customer::where('account_amount', 0)
             ->first();
 
-        if ( $customer instanceof Customer ) {
+        if ($customer instanceof Customer) {
             $response = $this
-                ->withSession( $this->app[ 'session' ]->all() )
-                ->json( 'POST', '/api/nexopos/v4/customers/' . $customer->id . '/account-history', [
+                ->withSession($this->app[ 'session' ]->all())
+                ->json('POST', '/api/customers/' . $customer->id . '/account-history', [
                     'amount' => 500,
-                    'description' => __( 'Test credit account' ),
+                    'description' => __('Test credit account'),
                     'operation' => CustomerAccountHistory::OPERATION_DEDUCT,
                 ]);
 
             return $response->assertJson([ 'status' => 'failed' ]);
         }
 
-        throw new Exception( __( 'No customer with empty account to proceed the test.' ) );
+        throw new Exception(__('No customer with empty account to proceed the test.'));
     }
 
     protected function attemptCreditCustomerAccount()
     {
-        $customer = Customer::where( 'account_amount', 0 )
+        $customer = Customer::where('account_amount', 0)
             ->first();
 
-        if ( $customer instanceof Customer ) {
+        if ($customer instanceof Customer) {
             $response = $this
-                ->withSession( $this->app[ 'session' ]->all() )
-                ->json( 'POST', '/api/nexopos/v4/customers/' . $customer->id . '/account-history', [
+                ->withSession($this->app[ 'session' ]->all())
+                ->json('POST', '/api/customers/' . $customer->id . '/account-history', [
                     'amount' => 500,
-                    'description' => __( 'Test credit account' ),
+                    'description' => __('Test credit account'),
                     'operation' => CustomerAccountHistory::OPERATION_ADD,
                 ]);
 
             return $response->assertJson([ 'status' => 'success' ]);
         }
 
-        throw new Exception( __( 'No customer with empty account to proceed the test.' ) );
+        throw new Exception(__('No customer with empty account to proceed the test.'));
     }
 
     protected function attemptCreateCustomerWithNoEmail()
@@ -76,18 +78,20 @@ trait WithCustomerTest
         $faker = Factory::create();
         $group = CustomerGroup::first();
 
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'POST', 'api/nexopos/v4/crud/ns.customers', [
-                'name' => $faker->firstName,
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers', [
+                'first_name' => $faker->firstName,
                 'general' => [
                     'group_id' => $group->id,
-                    'surname' => $faker->lastName,
+                    'last_name' => $faker->lastName,
                 ],
                 'shipping' => [
-                    'name' => $faker->firstName,
+                    'first_name' => $faker->firstName,
                     'email' => $faker->email,
                 ],
             ]);
+
+        $this->attemptTestCustomerGroup(Customer::find($response->json()[ 'data' ][ 'entry' ][ 'id' ]));
 
         $response->assertJson([
             'status' => 'success',
@@ -96,7 +100,7 @@ trait WithCustomerTest
 
     protected function attemptCreateCustomersWithSimilarEmail()
     {
-        ns()->option->set( 'ns_customers_force_valid_email', 'yes' );
+        ns()->option->set('ns_customers_force_valid_email', 'yes');
 
         $faker = Factory::create();
         $group = CustomerGroup::first();
@@ -106,16 +110,16 @@ trait WithCustomerTest
          * The first attempt should
          * be successful.
          */
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'POST', 'api/nexopos/v4/crud/ns.customers', [
-                'name' => $faker->firstName,
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers', [
+                'first_name' => $faker->firstName,
                 'general' => [
                     'group_id' => $group->id,
-                    'surname' => $faker->lastName,
+                    'last_name' => $faker->lastName,
                     'email' => $email,
                 ],
                 'shipping' => [
-                    'name' => $faker->firstName,
+                    'first_name' => $faker->firstName,
                     'email' => $faker->email,
                 ],
             ]);
@@ -124,20 +128,24 @@ trait WithCustomerTest
             'status' => 'success',
         ]);
 
+        $customer = Customer::find($response->json()[ 'data' ][ 'entry' ][ 'id' ]);
+
+        $this->attemptTestCustomerGroup($customer);
+
         /**
          * The second should fail as we're
          * using the exact same non-empty email
          */
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'POST', 'api/nexopos/v4/crud/ns.customers', [
-                'name' => $faker->firstName,
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers', [
+                'first_name' => $faker->firstName,
                 'general' => [
                     'group_id' => $group->id,
-                    'surname' => $faker->lastName,
+                    'last_name' => $faker->lastName,
                     'email' => $email,
                 ],
                 'shipping' => [
-                    'name' => $faker->firstName,
+                    'first_name' => $faker->firstName,
                     'email' => $faker->email,
                 ],
             ]);
@@ -147,107 +155,117 @@ trait WithCustomerTest
         ]);
     }
 
+    public function attemptTestCustomerGroup(Customer $customer)
+    {
+        $this->assertTrue($customer->group instanceof CustomerGroup);
+    }
+
     protected function attemptCreateCustomer()
     {
         $faker = Factory::create();
+        $group = CustomerGroup::first();
 
+        /**
+         * Creating a first customer
+         */
+        $email = $faker->email;
+        $firstName = $faker->firstName;
+        $lastName = $faker->lastName;
+
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers', [
+                'first_name' => $firstName,
+                'general' => [
+                    'group_id' => $group->id,
+                    'last_name' => $faker->lastName,
+                    'email' => $email,
+                ],
+                'shipping' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+                'billing' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+            ]);
+
+        $response->assertJson([
+            'status' => 'success',
+        ]);
+
+        return Customer::with('group')->findOrFail($response->json()[ 'data' ][ 'entry' ][ 'id' ]);
+    }
+
+    protected function attemptCreateCustomerWithInitialTransactions()
+    {
         /**
          * @var CustomerService $customerService
          */
-        $customerService = app()->make( CustomerService::class );
-        $group = CustomerGroup::first();
+        $customerService = app()->make(CustomerService::class);
 
-        for ( $i = 0; $i < 10; $i++ ) {
-            /**
-             * Creating a first customer
-             */
-            $email = $faker->email;
-            $firstName = $faker->firstName;
-            $lastName = $faker->lastName;
+        $customer = $this->attemptCreateCustomer();
 
-            $response = $this->withSession( $this->app[ 'session' ]->all() )
-                ->json( 'POST', 'api/nexopos/v4/crud/ns.customers', [
-                    'name' => $firstName,
-                    'general' => [
-                        'group_id' => $group->id,
-                        'surname' => $faker->lastName,
-                        'email' => $email,
-                    ],
-                    'shipping' => [
-                        'name' => $firstName,
-                        'surname' => $lastName,
-                        'email' => $email,
-                    ],
-                    'billing' => [
-                        'name' => $firstName,
-                        'surname' => $lastName,
-                        'email' => $email,
-                    ],
-                ]);
+        $this->attemptTestCustomerGroup($customer);
 
-            $response->assertJson([
-                'status' => 'success',
-            ]);
-
-            $lastCustomer = Customer::orderBy( 'id', 'desc' )->first();
+        /**
+         * For each customer
+         * let's create a crediting operation
+         */
+        if ($this->faker->randomElement([ true, false ])) {
+            $randomAmount = $this->faker->randomNumber(3, true);
 
             /**
-             * For each customer
-             * let's create a crediting operation
+             * Step 1: we'll make some transaction
+             * and verify how it goes.
              */
-            if ( $this->faker->randomElement([ true, false ]) ) {
-                $randomAmount = $this->faker->randomNumber(3, true);
+            $result = $customerService->saveTransaction(
+                $customer,
+                CustomerAccountHistory::OPERATION_ADD,
+                $randomAmount,
+                'Created from tests',
+            );
 
-                /**
-                 * Step 1: we'll make some transaction
-                 * and verify how it goes.
-                 */
-                $result = $customerService->saveTransaction(
-                    $lastCustomer,
-                    CustomerAccountHistory::OPERATION_ADD,
-                    $randomAmount,
-                    'Created from tests',
-                );
+            $history = $result[ 'data' ][ 'customerAccountHistory' ];
 
-                $history = $result[ 'data' ][ 'customerAccountHistory' ];
+            $this->assertSame((float) $history->amount, (float) $randomAmount, 'The amount is not refected on the history.');
+            $this->assertSame((float) $history->next_amount, (float) $randomAmount, 'The amount is not refected on the history.');
+            $this->assertSame((float) $history->previous_amount, (float) 0, 'The previous amount is not accurate.');
 
-                $this->assertSame( (float) $history->amount, (float) $randomAmount, 'The amount is not refected on the history.' );
-                $this->assertSame( (float) $history->next_amount, (float) $randomAmount, 'The amount is not refected on the history.' );
-                $this->assertSame( (float) $history->previous_amount, (float) 0, 'The previous amount is not accurate.' );
+            $customer->refresh();
 
-                $lastCustomer->refresh();
+            $this->assertSame((float) $randomAmount, (float) $customer->account_amount, 'The customer account hasn\'t been updated.');
 
-                $this->assertSame( (float) $randomAmount, (float) $lastCustomer->account_amount, 'The customer account hasn\'t been updated.' );
+            /**
+             * Step 2: second control and verification on
+             * how it goes.
+             */
+            $result = $customerService->saveTransaction(
+                $customer,
+                CustomerAccountHistory::OPERATION_DEDUCT,
+                $randomAmount,
+                'Created from tests',
+            );
 
-                /**
-                 * Step 2: second control and verification on
-                 * how it goes.
-                 */
-                $result = $customerService->saveTransaction(
-                    $lastCustomer,
-                    CustomerAccountHistory::OPERATION_DEDUCT,
-                    $randomAmount,
-                    'Created from tests',
-                );
+            $customer->refresh();
 
-                $lastCustomer->refresh();
+            $history = $result[ 'data' ][ 'customerAccountHistory' ];
 
-                $history = $result[ 'data' ][ 'customerAccountHistory' ];
-
-                $this->assertSame( (float) $history->amount, (float) $randomAmount, 'The amount is not refected on the history.' );
-                $this->assertSame( (float) $history->next_amount, (float) 0, 'The amount is not refected on the history.' );
-                $this->assertSame( (float) $history->previous_amount, (float) $randomAmount, 'The previous amount is not accurate.' );
-            }
+            $this->assertSame((float) $history->amount, (float) $randomAmount, 'The amount is not refected on the history.');
+            $this->assertSame((float) $history->next_amount, (float) 0, 'The amount is not refected on the history.');
+            $this->assertSame((float) $history->previous_amount, (float) $randomAmount, 'The previous amount is not accurate.');
         }
     }
 
     protected function attemptCreateReward()
     {
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'post', 'api/nexopos/v4/crud/ns.rewards-system', [
-                'name' => __( 'Sample Reward System' ),
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('post', 'api/crud/ns.rewards-system', [
+                'name' => __('Sample Reward System'),
                 'general' => [
-                    'coupon_id' => $this->faker->randomElement( Coupon::get()->map( fn( $coupon ) => $coupon->id )->toArray() ),
+                    'coupon_id' => $this->faker->randomElement(Coupon::get()->map(fn($coupon) => $coupon->id)->toArray()),
                     'target' => $this->faker->randomElement([ 10, 20, 30 ]),
                 ],
                 'rules' => [
@@ -274,13 +292,13 @@ trait WithCustomerTest
     {
         $accountHistory = CustomerAccountHistory::first();
 
-        if ( $accountHistory instanceof CustomerAccountHistory ) {
-            $response = $this->withSession( $this->app[ 'session' ]->all() )
-                ->json( 'GET', 'api/nexopos/v4/customers/' . $accountHistory->customer_id . '/account-history' );
+        if ($accountHistory instanceof CustomerAccountHistory) {
+            $response = $this->withSession($this->app[ 'session' ]->all())
+                ->json('GET', 'api/customers/' . $accountHistory->customer_id . '/account-history');
 
             $response->assertOk();
-            $response = json_decode( $response->getContent(), true );
-            $result = collect( $response[ 'data' ] )->filter( fn( $entry ) => (int) $accountHistory->id === (int) $entry[ 'id' ] );
+            $response = json_decode($response->getContent(), true);
+            $result = collect($response[ 'data' ])->filter(fn($entry) => (int) $accountHistory->id === (int) $entry[ 'id' ]);
 
             return $this->assertTrue(
                 $result->isNotEmpty(),
@@ -288,14 +306,63 @@ trait WithCustomerTest
             );
         }
 
-        throw new Exception( 'Unable to perform the test without a valid history.' );
+        throw new Exception('Unable to perform the test without a valid history.');
+    }
+
+    protected function attemptSearchCustomers()
+    {
+        $faker = Factory::create();
+        $group = CustomerGroup::first();
+
+        /**
+         * Creating a first customer
+         */
+        $email = $faker->email;
+        $firstName = $faker->firstName;
+        $lastName = $faker->lastName;
+
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/crud/ns.customers', [
+                'first_name' => $firstName,
+                'general' => [
+                    'group_id' => $group->id,
+                    'last_name' => $faker->lastName,
+                    'email' => $email,
+                ],
+                'shipping' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+                'billing' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+            ]);
+
+        $response->assertJson([
+            'status' => 'success',
+        ]);
+
+        $lastCustomer = Customer::where('first_name', '!=', null)->orderBy('id', 'desc')->first();
+
+        /**
+         * let's now search
+         */
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('POST', 'api/customers/search', [
+                'search' => $lastCustomer->first_name,
+            ]);
+
+        $response->assertJsonPath('0.id', $lastCustomer->id);
     }
 
     protected function attemptGetCustomerReward()
     {
         $customer = Customer::first();
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'GET', 'api/nexopos/v4/customers/' . $customer->id . '/rewards' );
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('GET', 'api/customers/' . $customer->id . '/rewards');
 
         $response->assertOk();
     }
@@ -303,8 +370,8 @@ trait WithCustomerTest
     protected function attemptGetCustomerOrders()
     {
         $customer = Customer::first();
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'GET', 'api/nexopos/v4/customers/' . $customer->id . '/orders' );
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('GET', 'api/customers/' . $customer->id . '/orders');
 
         $response->assertOk();
     }
@@ -312,8 +379,8 @@ trait WithCustomerTest
     protected function attemptGetOrdersAddresses()
     {
         $customer = Customer::first();
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'GET', 'api/nexopos/v4/customers/' . $customer->id . '/addresses' );
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('GET', 'api/customers/' . $customer->id . '/addresses');
 
         $response->assertOk();
     }
@@ -321,9 +388,62 @@ trait WithCustomerTest
     protected function attemptGetCustomerGroup()
     {
         $customer = Customer::first();
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'GET', 'api/nexopos/v4/customers/' . $customer->id . '/group' );
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('GET', 'api/customers/' . $customer->id . '/group');
 
         $response->assertOk();
+    }
+
+    protected function attemptDeleteCustomer(Customer $customer)
+    {
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('DELETE', 'api/crud/ns.customers/' . $customer->id);
+
+        $response->assertJson([
+            'status' => 'success',
+        ]);
+
+        return $customer;
+    }
+
+    protected function attemptUpdateCustomer(Customer $customer)
+    {
+        $faker = Factory::create();
+        $group = $this->attemptCreateCustomerGroup();
+
+        /**
+         * Creating a first customer
+         */
+        $email = $faker->email;
+        $firstName = $faker->firstName;
+        $lastName = $faker->lastName;
+
+        $response = $this->withSession($this->app[ 'session' ]->all())
+            ->json('PUT', 'api/crud/ns.customers/' . $customer->id, [
+                'first_name' => $firstName,
+                'general' => [
+                    'group_id' => $group->id,
+                    'last_name' => $faker->lastName,
+                    'email' => $customer->email,
+                ],
+                'shipping' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+                'billing' => [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                ],
+            ]);
+
+        $response->assertJson([
+            'status' => 'success',
+        ]);
+
+        $this->assertFalse($customer->group->id === $group->id);
+
+        return Customer::with('group')->findOrFail($response->json()[ 'data' ][ 'entry' ][ 'id' ]);
     }
 }

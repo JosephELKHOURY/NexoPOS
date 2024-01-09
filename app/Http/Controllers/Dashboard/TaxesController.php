@@ -14,6 +14,7 @@ use App\Exceptions\NotFoundException;
 use App\Http\Controllers\DashboardController;
 use App\Models\Tax;
 use App\Models\TaxGroup;
+use App\Services\DateService;
 use App\Services\TaxService;
 use Exception;
 use Illuminate\Http\Request;
@@ -21,22 +22,19 @@ use Illuminate\Support\Facades\View;
 
 class TaxesController extends DashboardController
 {
-    private $taxService;
-
     public function __construct(
-        TaxService $taxService
+        protected TaxService $taxService,
+        protected DateService $dateService
     ) {
-        parent::__construct();
-
-        $this->taxService = $taxService;
+        // ...
     }
 
-    public function get( $id = null )
+    public function get($id = null)
     {
-        if ( ! empty( $id ) ) {
-            $productTax = Tax::find( $id );
-            if ( ! $productTax instanceof Tax ) {
-                throw new Exception( __( 'Unable to find the requested product tax using the provided id' ) );
+        if (! empty($id)) {
+            $productTax = Tax::find($id);
+            if (! $productTax instanceof Tax) {
+                throw new Exception(__('Unable to find the requested product tax using the provided id'));
             }
 
             return $productTax;
@@ -52,9 +50,9 @@ class TaxesController extends DashboardController
      * @param number id
      * @return json
      */
-    public function delete( $id )
+    public function delete($id)
     {
-        return $this->taxService->delete( $id );
+        return $this->taxService->delete($id);
     }
 
     /**
@@ -64,11 +62,11 @@ class TaxesController extends DashboardController
      * @param int tax id
      * @return Tax | null
      */
-    private function getTaxOrFail( $id )
+    private function getTaxOrFail($id)
     {
-        $productTax = Tax::find( $id );
-        if ( ! $productTax instanceof Tax ) {
-            throw new Exception( __( 'Unable to find the requested product tax using the provided identifier.' ) );
+        $productTax = Tax::find($id);
+        if (! $productTax instanceof Tax) {
+            throw new Exception(__('Unable to find the requested product tax using the provided identifier.'));
         }
 
         return $productTax;
@@ -81,7 +79,7 @@ class TaxesController extends DashboardController
      * @param request
      * @return json
      */
-    public function post( Request $request ) // must be a specific form request with a validation
+    public function post(Request $request) // must be a specific form request with a validation
     {
         /**
          * @todo add a prior validation
@@ -92,11 +90,11 @@ class TaxesController extends DashboardController
             'name', 'rate', 'description', 'type', 'parent_id',
         ]);
 
-        $this->taxService->create( $fields );
+        $this->taxService->create($fields);
 
         return [
             'status' => 'success',
-            'message' => __( 'The product tax has been created.' ),
+            'message' => __('The product tax has been created.'),
         ];
     }
 
@@ -107,13 +105,13 @@ class TaxesController extends DashboardController
      * @param int category id
      * @return json
      */
-    public function put( $id, Request $request ) // must use a specific request which include a validation
+    public function put($id, Request $request) // must use a specific request which include a validation
     {
         $fields = $request->only([
             'name', 'rate', 'description', 'type', 'parent_id',
         ]);
 
-        $tax = $this->taxService->update( $id, $fields );
+        $tax = $this->taxService->update($id, $fields);
 
         /**
          * @todo dispatch en event
@@ -121,8 +119,8 @@ class TaxesController extends DashboardController
          */
         return [
             'status' => 'success',
-            'message' => __( 'The product tax has been updated' ),
-            'data' => compact( 'tax' ),
+            'message' => __('The product tax has been updated'),
+            'data' => compact('tax'),
         ];
     }
 
@@ -132,22 +130,22 @@ class TaxesController extends DashboardController
      * @param int tax id
      * @return json
      */
-    public function getTaxGroup( $taxId = null )
+    public function getTaxGroup($taxId = null)
     {
-        if ( $taxId === null ) {
-            return TaxGroup::with( 'taxes' )->get();
+        if ($taxId === null) {
+            return TaxGroup::with('taxes')->get();
         }
 
-        $taxGroup = TaxGroup::find( $taxId );
+        $taxGroup = TaxGroup::find($taxId);
 
-        if ( ! $taxGroup instanceof TaxGroup ) {
-            throw new NotFoundException( sprintf(
-                __( 'Unable to retrieve the requested tax group using the provided identifier "%s".' ),
+        if (! $taxGroup instanceof TaxGroup) {
+            throw new NotFoundException(sprintf(
+                __('Unable to retrieve the requested tax group using the provided identifier "%s".'),
                 $taxId
-            ) );
+            ));
         }
 
-        $taxGroup->load( 'taxes' );
+        $taxGroup->load('taxes');
 
         return $taxGroup;
     }
@@ -177,9 +175,9 @@ class TaxesController extends DashboardController
      *
      * @return view
      */
-    public function editTax( Tax $tax )
+    public function editTax(Tax $tax)
     {
-        return TaxCrud::form( $tax );
+        return TaxCrud::form($tax);
     }
 
     /**
@@ -207,8 +205,8 @@ class TaxesController extends DashboardController
      *
      * @return view
      */
-    public function editTaxGroup( TaxGroup $group )
+    public function editTaxGroup(TaxGroup $group)
     {
-        return TaxesGroupCrud::form( $group );
+        return TaxesGroupCrud::form($group);
     }
 }

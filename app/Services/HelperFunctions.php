@@ -1,6 +1,5 @@
 <?php
 
-use App\Exceptions\NotFoundException;
 use App\Services\CoreService;
 use illuminate\Support\Facades\Route;
 
@@ -24,13 +23,13 @@ if (! function_exists('array_insert')) {
         }
         $offset = array_search($key, array_keys($input));
 
-        if ('after' === $pos) {
+        if ($pos === 'after') {
             $offset++;
         } else {
             $offset--;
         }
 
-        if (false !== $offset) {
+        if ($offset !== false) {
             $result = array_slice($input, 0, $offset);
             $result = array_merge($result, (array) $insert, array_slice($input, $offset));
         } else {
@@ -48,13 +47,13 @@ if (! function_exists('array_insert')) {
  * @param string $key
  * @return array
  */
-function array_insert_after( array $array, $key, array $new )
+function array_insert_after(array $array, $key, array $new)
 {
-    $keys = array_keys( $array );
-    $index = array_search( $key, $keys );
-    $pos = false === $index ? count( $array ) : $index + 1;
+    $keys = array_keys($array);
+    $index = array_search($key, $keys);
+    $pos = $index === false ? count($array) : $index + 1;
 
-    return array_merge( array_slice( $array, 0, $pos ), $new, array_slice( $array, $pos ) );
+    return array_merge(array_slice($array, 0, $pos), $new, array_slice($array, $pos));
 }
 
 /**
@@ -65,9 +64,9 @@ function array_insert_after( array $array, $key, array $new )
  * @param array new array
  * @return array
  **/
-function array_insert_before( $array, $key, $new )
+function array_insert_before($array, $key, $new)
 {
-    return array_insert( $array, $new, $key, $pos = 'before');
+    return array_insert($array, $new, $key, $pos = 'before');
 }
 
 /**
@@ -92,12 +91,12 @@ function generate_timezone_list()
     ];
 
     $timezones = [];
-    foreach ( $regions as $region ) {
-        $timezones = array_merge( $timezones, DateTimeZone::listIdentifiers( $region ) );
+    foreach ($regions as $region) {
+        $timezones = array_merge($timezones, DateTimeZone::listIdentifiers($region));
     }
 
     $timezone_offsets = [];
-    foreach ( $timezones as $timezone ) {
+    foreach ($timezones as $timezone) {
         $tz = new DateTimeZone($timezone);
         $timezone_offsets[$timezone] = $tz->getOffset(new DateTime);
     }
@@ -106,13 +105,13 @@ function generate_timezone_list()
     asort($timezone_offsets);
 
     $timezone_list = [];
-    foreach ( $timezone_offsets as $timezone => $offset ) {
+    foreach ($timezone_offsets as $timezone => $offset) {
         $offset_prefix = $offset < 0 ? '-' : '+';
-        $offset_formatted = gmdate( 'H:i', abs($offset) );
+        $offset_formatted = gmdate('H:i', abs($offset));
 
-        $pretty_offset = "UTC${offset_prefix}${offset_formatted}";
+        $pretty_offset = "UTC{$offset_prefix}{$offset_formatted}";
 
-        $timezone_list[$timezone] = "(${pretty_offset}) $timezone";
+        $timezone_list[$timezone] = "({$pretty_offset}) $timezone";
     }
 
     return $timezone_list;
@@ -136,14 +135,14 @@ function route_field()
  * @param string
  * @return bool
  */
-function isUrl( $text )
+function isUrl($text)
 {
-    return filter_var( $text, FILTER_VALIDATE_URL ) !== false;
+    return filter_var($text, FILTER_VALIDATE_URL) !== false;
 }
 
 class UseThisChain
 {
-    public function __construct( $class )
+    public function __construct($class)
     {
         $this->class = $class;
     }
@@ -152,7 +151,7 @@ class UseThisChain
      * @param string method name
      * @return string result
      */
-    public function method( $name )
+    public function method($name)
     {
         return $this->class . '@' . $name;
     }
@@ -166,9 +165,9 @@ class UseThisChain
  * @param string
  * @return stdClass class
  */
-function useThis( string $class ): UseThisChain
+function useThis(string $class): UseThisChain
 {
-    return new UseThisChain( $class );
+    return new UseThisChain($class);
 }
 
 /**
@@ -177,16 +176,16 @@ function useThis( string $class ): UseThisChain
  * @param string class name with method
  * @return void
  */
-function execThis( $className )
+function execThis($className)
 {
-    $vars = explode( $className, '@' );
-    if ( count( $vars ) === 2 ) {
+    $vars = explode($className, '@');
+    if (count($vars) === 2) {
         $class = $vars[0];
         $method = $vars[1];
 
         return (new $class)->$method();
     }
-    throw new Exception( sprintf( __( 'Unable to execute the following class callback string : %s' ), $className ) );
+    throw new Exception(sprintf(__('Unable to execute the following class callback string : %s'), $className));
 }
 
 /**
@@ -194,7 +193,7 @@ function execThis( $className )
  */
 function ns(): CoreService
 {
-    return app()->make( CoreService::class );
+    return app()->make(CoreService::class);
 }
 
 /**
@@ -205,40 +204,11 @@ function ns(): CoreService
  * @param string $namespace
  * @return string $result
  */
-function __m( $key, $namespace = 'default' )
+function __m($key, $namespace = 'default')
 {
-    if ( app( 'translator' )->has( $namespace . '.' . $key  ) ) {
-        return app( 'translator' )->get( $namespace . '.' . $key );
+    if (app('translator')->has($namespace . '.' . $key)) {
+        return app('translator')->get($namespace . '.' . $key);
     }
 
     return $key;
-}
-
-/**
- * Will load css assert
- *
- * @param string $path
- * @return string
- */
-function loadcss( $path )
-{
-    if ( in_array( strtolower( env( 'NS_ENV' ) ), [ 'prod', 'production' ]) ) {
-        $files = json_decode( file_get_contents( base_path( 'public/css-manifest.json' ) ), true );
-
-        if ( isset( $files[ $path ] ) ) {
-            return asset( 'css/' . $files[ $path ] );
-        }
-
-        throw new NotFoundException( sprintf(
-            __( 'Unable to find the requested asset file "%s".'),
-            asset( 'css/' . $path )
-        ) );
-    } else {
-        return asset( 'css/' . $path );
-
-        throw new NotFoundException( sprintf(
-            __( 'Unable to find the requested asset file "%s".'),
-            asset( 'css/' . $path )
-        ) );
-    }
 }

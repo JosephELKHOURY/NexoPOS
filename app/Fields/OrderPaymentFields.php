@@ -7,18 +7,18 @@ use App\Services\FieldsService;
 
 class OrderPaymentFields extends FieldsService
 {
-    protected $identifier = 'ns.order-payments';
+    protected static $identifier = 'ns.order-payments';
 
     public function get()
     {
         $fields = [
             [
-                'label' => __( 'Select Payment' ),
-                'description' => __( 'choose the payment type.' ),
+                'label' => __('Select Payment'),
+                'description' => __('choose the payment type.'),
                 'validation' => 'required',
                 'name' => 'identifier',
                 'type' => 'select',
-                'options' => collect( PaymentType::active()->get() )->map( function ( $payment ) {
+                'options' => collect(PaymentType::active()->get())->map(function ($payment) {
                     $payment[ 'value' ] = $payment[ 'identifier' ];
 
                     return $payment;

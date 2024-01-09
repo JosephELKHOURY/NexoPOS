@@ -9,11 +9,15 @@ class CurrencyService
 {
     private $value;
 
+    private $currency;
+
     private $currency_iso;
 
     private $prefered_currency;
 
     private $currency_symbol;
+
+    private $currency_position;
 
     private $format;
 
@@ -37,11 +41,11 @@ class CurrencyService
 
     private static $_prefered_currency = 'iso';
 
-    public function __construct( $value, $config = [])
+    public function __construct($value, $config = [])
     {
-        $this->value = BigDecimal::of( $value );
+        $this->value = BigDecimal::of($value);
 
-        extract( $config );
+        extract($config);
 
         $this->currency_iso = $currency_iso ?? self::$_currency_iso;
         $this->currency_symbol = $currency_symbol ?? self::$_currency_symbol;
@@ -59,9 +63,9 @@ class CurrencyService
      * @param int|float $value
      * @return CurrencyService
      */
-    public function fresh( $value )
+    public function fresh($value)
     {
-        return new CurrencyService( $value, [
+        return new CurrencyService($value, [
             'currency_iso' => $this->currency_iso,
             'currency_symbol' => $this->currency_symbol,
             'currency_position' => $this->currency_position,
@@ -73,34 +77,29 @@ class CurrencyService
     }
 
     /**
-     * Set a value for the current instance
-     *
-     * @param int|float $amount
+     * Set a value for the current instance.
      */
-    private static function __defineAmount( $amount ): CurrencyService
+    private static function __defineAmount(float|int|string $amount): CurrencyService
     {
         /**
          * @var CurrencyService
          */
-        $currencyService = app()->make( CurrencyService::class );
+        $currencyService = app()->make(CurrencyService::class);
 
-        return $currencyService->value( $amount );
+        return $currencyService->value($amount);
     }
 
     /**
      * Define an amount to work on
-     *
-     * @param string
-     * @return CurrencyService
      */
-    public static function define( $amount )
+    public static function define(float|int|string $amount)
     {
-        return self::__defineAmount( $amount );
+        return self::__defineAmount($amount);
     }
 
-    public function value( $amount )
+    public function value(float|int|string $amount): self
     {
-        $this->value = BigDecimal::of( $amount );
+        $this->value = BigDecimal::of($amount);
 
         return $this;
     }
@@ -112,71 +111,51 @@ class CurrencyService
 
     /**
      * Multiply two numbers
-     * and return a currency object
-     *
-     * @param int left operand
-     * @param int right operand
-     * @return CurrencyService
+     * and return a currency object.
      */
-    public static function multiply( $first, $second )
+    public static function multiply(int|float $first, int|float $second): self
     {
         return self::__defineAmount(
-            BigDecimal::of( trim( $first ) )
-        )->multipliedBy( trim( $second ) );
+            BigDecimal::of(trim($first))
+        )->multipliedBy(trim($second));
     }
 
     /**
      * Divide two numbers
      * and return a currency object
-     *
-     * @param int left operand
-     * @param int right operand
-     * @return CurrencyService
      */
-    public static function divide( $first, $second )
+    public static function divide(int|float $first, int|float $second): self
     {
         return self::__defineAmount(
-            BigDecimal::of( $first )
-        )->dividedBy( $second );
+            BigDecimal::of($first)
+        )->dividedBy($second);
     }
 
     /**
-     * Additionnate two operands
-     *
-     * @param int left operand
-     * @param int right operand
-     * @return CurrencyService
+     * Additionnate two operands.
      */
-    public static function additionate( $left_operand, $right_operand )
+    public static function additionate(float|int $left_operand, float|int $right_operand): self
     {
         return self::__defineAmount(
-            BigDecimal::of( $left_operand )
-        )->additionateBy( $right_operand );
+            BigDecimal::of($left_operand)
+        )->additionateBy($right_operand);
     }
 
     /**
      * calculate a percentage of
-     * 2 operand
-     *
-     * @param int amount
-     * @param int percentage
-     * @return CurrencyService
      */
-    public static function percent( $amount, $rate )
+    public static function percent(int|float $amount, int|float $rate): self
     {
-        return self::__defineAmount( BigDecimal::of( $amount ) )
-            ->multipliedBy( $rate )
+        return self::__defineAmount(BigDecimal::of($amount))
+            ->multipliedBy($rate)
             ->dividedBy(100);
     }
 
     /**
      * Define the currency in use
      * on the current process
-     *
-     * @param string
-     * @return Currency
      */
-    public function currency( $currency )
+    public function currency($currency): string
     {
         $this->currency = $currency;
 
@@ -186,14 +165,12 @@ class CurrencyService
     /**
      * Get a currency formatted
      * amount of the current Currency Object
-     *
-     * @return string
      */
-    public function format()
+    public function format(): string
     {
         $currency = $this->prefered_currency === 'iso' ? $this->currency_iso : $this->currency_symbol;
-        $final = sprintf( '%s ' . number_format(
-            floatval( (string) $this->value ),
+        $final = sprintf('%s ' . number_format(
+            floatval((string) $this->value),
             $this->decimal_precision,
             $this->decimal_separator,
             $this->thousand_separator
@@ -213,21 +190,18 @@ class CurrencyService
      */
     public function get()
     {
-        return $this->getRaw( $this->value );
+        return $this->getRaw($this->value);
     }
 
     /**
      * return a raw value for the provided number
-     *
-     * @param float $value
-     * @return float
      */
-    public function getRaw( $value = null )
+    public function getRaw(float|null|BigDecimal $value = null): float
     {
-        if ( $value === null ) {
-            return $this->value->dividedBy( 1, $this->decimal_precision, RoundingMode::HALF_UP )->toFloat();
+        if ($value === null) {
+            return $this->value->dividedBy(1, $this->decimal_precision, RoundingMode::HALF_UP)->toFloat();
         } else {
-            return BigDecimal::of( $value )->dividedBy( 1, $this->decimal_precision, RoundingMode::HALF_UP )->toFloat();
+            return BigDecimal::of($value)->dividedBy(1, $this->decimal_precision, RoundingMode::HALF_UP)->toFloat();
         }
 
         return 0;
@@ -236,13 +210,21 @@ class CurrencyService
     /**
      * Define accuracy of the current
      * Currency object
-     *
-     * @param int precision number
-     * @return CurrencyService
      */
-    public function accuracy( $number )
+    public function accuracy(float|int $number): self
     {
-        $this->decimal_precision = intval( $number );
+        $this->decimal_precision = intval($number);
+
+        return $this;
+    }
+
+    /**
+     * Multiply the current Currency value
+     * by the provided number.
+     */
+    public function multipliedBy(int|float $number): self
+    {
+        $this->value = $this->value->multipliedBy($number);
 
         return $this;
     }
@@ -250,39 +232,23 @@ class CurrencyService
     /**
      * Multiply the current Currency value
      * by the provided number
-     *
-     * @param int number to multiply by
-     * @return CurrencyService
      */
-    public function multipliedBy( $number )
+    public function multiplyBy(int|float $number): self
     {
-        $this->value = $this->value->multipliedBy( $number );
-
-        return $this;
-    }
-
-    /**
-     * Multiply the current Currency value
-     * by the provided number
-     *
-     * @param int number to multiply by
-     * @return CurrencyService
-     */
-    public function multiplyBy( $number )
-    {
-        return $this->multipliedBy( $number );
+        return $this->multipliedBy($number);
     }
 
     /**
      * Divide the current Currency Value
      * by the provided number
-     *
-     * @param int number to divide by
-     * @return CurrencyService
      */
-    public function dividedBy( $number )
+    public function dividedBy(float|int $number): self
     {
-        $this->value = $this->value->dividedBy( $number, $this->decimal_precision, RoundingMode::UP );
+        $this->value = $this->value->dividedBy(
+            that: $number,
+            scale: 9,
+            roundingMode: RoundingMode::HALF_UP
+        );
 
         return $this;
     }
@@ -294,21 +260,18 @@ class CurrencyService
      * @param int number to divide by
      * @return CurrencyService
      */
-    public function divideBy( $number )
+    public function divideBy($number)
     {
-        return $this->dividedBy( $number );
+        return $this->dividedBy($number);
     }
 
     /**
      * Subtract the current Currency Value
      * by the provided number
-     *
-     * @param int number to subtract by
-     * @return CurrencyService
      */
-    public function subtractBy( $number )
+    public function subtractBy(float|int $number): self
     {
-        $this->value = $this->value->minus( $number );
+        $this->value = $this->value->minus($number);
 
         return $this;
     }
@@ -316,93 +279,35 @@ class CurrencyService
     /**
      * Additionnate the current Currency Value
      * by the provided number
-     *
-     * @param int number to additionnate by
-     * @return CurrencyService
      */
-    public function additionateBy( $number )
+    public function additionateBy(float|int $number): self
     {
-        $this->value = $this->value->plus( $number );
+        $this->value = $this->value->plus($number);
 
         return $this;
     }
 
-    /**
-     * @source https://stackoverflow.com/questions/1642614/how-to-ceil-floor-and-round-bcmath-numbers
-     *
-     * @deprecated
-     */
-    public function bcceil( $number )
+    public function getPercentageValue(float|int|string $value, float $percentage, string $operation = 'additionate'): BigDecimal|float|int|string
     {
-        if ( strpos( $number, '.' ) !== false) {
-            if (preg_match("~\.[0]+$~", $number ) ) {
-                return $this->bcround( $number, 0 );
-            }
-
-            if ( $number[0] != '-') {
-                return bcadd( $number, 1, 0);
-            }
-
-            return bcsub( $number, 0, 0 );
-        }
-
-        return $number;
-    }
-
-    /**
-     * @deprecated
-     */
-    public function bcfloor( $number )
-    {
-        if ( strpos( $number, '.' ) !== false) {
-            if (preg_match("~\.[0]+$~", $number)) {
-                return $this->bcround($number, 0);
-            }
-
-            if ($number[0] != '-') {
-                return bcadd($number, 0, 0);
-            }
-
-            return bcsub($number, 1, 0);
-        }
-
-        return $number;
-    }
-
-    /**
-     * @deprecated
-     */
-    public function bcround($number, $precision = 0)
-    {
-        if ( is_float( (float) $number ) ) {
-            if ( ( (string) $number )[0] != '-') {
-                $value = (float) bcadd( $number, '0.' . str_repeat('0', $precision) . '5', $precision);
-            } else {
-                $value = (float) bcsub( $number, '0.' . str_repeat('0', $precision) . '5', $precision);
-            }
-
-            if ( strpos( (string) $value, '.' ) === false ) {
-                return (int) $value;
-            }
-
-            return $value;
-        }
-
-        return $number;
-    }
-
-    public function getPercentageValue( $value, $percentage, $operation = 'additionate' )
-    {
-        $percentage = CurrencyService::define( $value )
-            ->multiplyBy( $percentage )
+        $percentage = CurrencyService::define($value)
+            ->multiplyBy($percentage)
             ->dividedBy(100);
 
-        if ( $operation === 'additionate' ) {
-            return (float) BigDecimal::of( $value )->plus( $percentage );
-        } elseif ( $operation === 'subtract' ) {
-            return (float) BigDecimal::of( $value )->minus( $percentage );
+        if ($operation === 'additionate') {
+            return (float) BigDecimal::of($value)->plus($percentage);
+        } elseif ($operation === 'subtract') {
+            return (float) BigDecimal::of($value)->minus($percentage);
         }
 
         return $value;
+    }
+
+    /**
+     * Returns a float value for
+     * a defined number.
+     */
+    public function toFloat(): float
+    {
+        return $this->value->toFloat();
     }
 }

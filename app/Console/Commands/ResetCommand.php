@@ -26,15 +26,13 @@ class ResetCommand extends Command
 
     /**
      * Reset service
-     *
-     * @var ResetService
      */
-    private $resetService;
+    private ResetService $resetService;
 
     /**
-     * @var DemoService
+     * Demo service
      */
-    private $demoService;
+    private DemoService $demoService;
 
     /**
      * Create a new command instance.
@@ -58,7 +56,7 @@ class ResetCommand extends Command
      */
     public function handle()
     {
-        switch ( $this->option( 'mode' ) ) {
+        switch ($this->option('mode')) {
             case 'soft':
                 return $this->softReset();
                 break;
@@ -70,45 +68,44 @@ class ResetCommand extends Command
                 $this->initializeRole();
                 $this->demoService->run([
                     'mode' => 'grocery',
-                    'create_sales' => $this->option( 'with-sales' ) && $this->option( 'with-procurements' ) ? true : false,
-                    'create_procurements' => $this->option( 'with-procurements' ) ? true : false,
+                    'create_sales' => $this->option('with-sales') && $this->option('with-procurements') ? true : false,
+                    'create_procurements' => $this->option('with-procurements') ? true : false,
                 ]);
-                $this->info( __( 'The demo has been enabled.' ) );
+                $this->info(__('The demo has been enabled.'));
+                break;
+            default:
+                $this->error(__('Unsupported reset mode.'));
                 break;
         }
     }
 
     private function initializeRole()
     {
-        if ( $this->option( 'user' ) === 'default' ) {
-            $user = Role::namespace( 'admin' )->users->first();
-            Auth::loginUsingId( $user->id );
+        if ($this->option('user') === 'default') {
+            $user = Role::namespace('admin')->users->first();
+            Auth::loginUsingId($user->id);
         } else {
-            Auth::loginUsingId( $this->option( 'user' ) );
+            Auth::loginUsingId($this->option('user'));
         }
     }
 
     /**
      * Proceed hard reset
-     *
-     * @return void
      */
-    private function hardReset()
+    private function hardReset(): void
     {
         $result = $this->resetService->hardReset();
 
-        $this->info( $result[ 'message' ] );
+        $this->info($result[ 'message' ]);
     }
 
     /**
      * Proceed soft reset
-     *
-     * @return void
      */
-    private function softReset()
+    private function softReset(): void
     {
         $result = $this->resetService->softReset();
 
-        return $this->info( $result[ 'message' ] );
+        $this->info($result[ 'message' ]);
     }
 }

@@ -7,20 +7,20 @@ use App\Services\FieldsService;
 
 class AuthLoginFields extends FieldsService
 {
-    protected $identifier = 'ns.login';
+    protected static $identifier = 'ns.login';
 
     public function get()
     {
-        $fields = Hook::filter( 'ns-login-fields', [
+        $fields = Hook::filter('ns-login-fields', [
             [
-                'label' => __( 'Username' ),
-                'description' => __( 'Provide your username.' ),
+                'label' => __('Username'),
+                'description' => __('Provide your username.'),
                 'validation' => 'required',
                 'name' => 'username',
                 'type' => 'text',
             ], [
-                'label' => __( 'Password' ),
-                'description' => __( 'Provide your password.' ),
+                'label' => __('Password'),
+                'description' => __('Provide your password.'),
                 'validation' => 'required',
                 'name' => 'password',
                 'type' => 'password',

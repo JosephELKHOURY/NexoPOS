@@ -16,7 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 
 class ClearHoldOrdersJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, NsSerialize;
+    use Dispatchable, InteractsWithQueue, NsSerialize, Queueable;
 
     /**
      * Create a new job instance.
@@ -35,33 +35,21 @@ class ClearHoldOrdersJob implements ShouldQueue
      *
      * @return void
      */
-    public function handle()
-    {
-        /**
-         * @var Options
-         */
-        $options = app()->make( Options::class );
-
-        /**
-         * @var DateService
-         */
-        $date = app()->make( DateService::class );
-
-        /**
-         * @var NotificationService;
-         */
-        $notification = app()->make( NotificationService::class );
-
-        $deleted = Order::paymentStatus( Order::PAYMENT_HOLD )
+    public function handle(
+        Options $options,
+        DateService $date,
+        NotificationService $notification
+    ) {
+        $deleted = Order::paymentStatus(Order::PAYMENT_HOLD)
             ->get()
-            ->filter( function ( $order ) use ( $options, $date ) {
+            ->filter(function ($order) use ($options, $date) {
                 /**
                  * @var Carbon
                  */
-                $expectedDate = Carbon::parse( $order->created_at )
-                    ->addDays( $options->get( 'ns_orders_quotation_expiration', 5 ) );
+                $expectedDate = Carbon::parse($order->created_at)
+                    ->addDays($options->get('ns_orders_quotation_expiration', 5));
 
-                if ( $expectedDate->lessThan( $date->now() ) ) {
+                if ($expectedDate->lessThan($date->now())) {
                     /**
                      * @todo we might consider soft deleting for now
                      */
@@ -73,18 +61,18 @@ class ClearHoldOrdersJob implements ShouldQueue
                 return false;
             });
 
-        if ( $deleted->count() > 0 ) {
+        if ($deleted->count() > 0) {
             /**
              * Dispatch notification
              * to let admins know it has been cleared.
              */
             $notification->create([
-                'title' => __( 'Hold Order Cleared' ),
+                'title' => __('Hold Order Cleared'),
                 'identifier' => self::class,
-                'description' => sprintf( __( '%s order(s) has recently been deleted as they has expired.' ), $deleted->count() ),
+                'description' => sprintf(__('%s order(s) has recently been deleted as they has expired.'), $deleted->count()),
             ])->dispatchForGroup([
-                Role::namespace( 'admin' ),
-                Role::namespace( 'nexopos.store.administrator' ),
+                Role::namespace('admin'),
+                Role::namespace('nexopos.store.administrator'),
             ]);
         }
     }

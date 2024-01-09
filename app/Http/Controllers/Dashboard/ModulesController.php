@@ -10,51 +10,45 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Requests\ModuleUploadRequest;
+use App\Services\DateService;
 use App\Services\ModulesService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
 class ModulesController extends DashboardController
 {
-    /**
-     * @var ModulesService
-     */
-    protected $modules;
-
     public function __construct(
-        ModulesService $modules
+        protected ModulesService $modules,
+        protected DateService $dateService
     ) {
-        parent::__construct();
-
-        $this->middleware( function ( $request, $next ) {
+        $this->middleware(function ($request, $next) {
             ns()->restrict([ 'manage.modules' ]);
 
-            return $next( $request );
+            return $next($request);
         });
-
-        $this->modules = $modules;
     }
 
-    public function listModules( $page = '' )
+    public function listModules($page = '')
     {
-        return $this->view( 'pages.dashboard.modules.list', [
-            'title' => __( 'Modules List' ),
-            'description' => __( 'List all available modules.' ),
+        return View::make('pages.dashboard.modules.list', [
+            'title' => __('Modules List'),
+            'description' => __('List all available modules.'),
         ]);
     }
 
-    public function downloadModule( $identifier )
+    public function downloadModule($identifier)
     {
         ns()->restrict([ 'manage.modules' ]);
 
-        $module = $this->modules->get( $identifier );
-        $download = $this->modules->extract( $identifier );
-        $relativePath = substr( $download[ 'path' ], strlen( base_path() ) );
+        $module = $this->modules->get($identifier);
+        $download = $this->modules->extract($identifier);
+        $relativePath = substr($download[ 'path' ], strlen(base_path()));
 
-        return Storage::disk( 'ns' )->download( $relativePath, Str::slug( $module[ 'name' ] ) . '-' . $module[ 'version' ] . '.zip' );
+        return Storage::disk('ns')->download($relativePath, Str::slug($module[ 'name' ]) . '-' . $module[ 'version' ] . '.zip');
     }
 
     /**
@@ -63,9 +57,9 @@ class ModulesController extends DashboardController
      * @param string status
      * @return array of modules
      */
-    public function getModules( $argument = '' )
+    public function getModules($argument = '')
     {
-        switch ( $argument ) {
+        switch ($argument) {
             case '':
                 $list = $this->modules->get();
                 break;
@@ -79,8 +73,8 @@ class ModulesController extends DashboardController
 
         return [
             'modules' => $list,
-            'total_enabled' => count( $this->modules->getEnabled() ),
-            'total_disabled' => count( $this->modules->getDisabled() ),
+            'total_enabled' => count($this->modules->getEnabled()),
+            'total_disabled' => count($this->modules->getDisabled()),
         ];
     }
 
@@ -93,13 +87,13 @@ class ModulesController extends DashboardController
      *
      * @deprecated
      */
-    public function migrate( $namespace, Request $request )
+    public function migrate($namespace, Request $request)
     {
-        $module = $this->modules->get( $namespace );
-        $result = $this->modules->runMigration( $module[ 'namespace' ], $request->input( 'version' ), $request->input( 'file' ) );
+        $module = $this->modules->get($namespace);
+        $result = $this->modules->runMigration($module[ 'namespace' ], $request->input('version'), $request->input('file'));
 
-        if ( $result[ 'status' ] === 'failed' ) {
-            throw new Exception( $result[ 'message' ] );
+        if ($result[ 'status' ] === 'failed') {
+            throw new Exception($result[ 'message' ]);
         }
 
         return $result;
@@ -109,34 +103,34 @@ class ModulesController extends DashboardController
      * @param string module identifier
      * @return array operation response
      */
-    public function disableModule( $argument )
+    public function disableModule($argument)
     {
-        return $this->modules->disable( $argument );
+        return $this->modules->disable($argument);
     }
 
     /**
      * @param string module identifier
      * @return array operation response
      */
-    public function enableModule( $argument )
+    public function enableModule($argument)
     {
-        return $this->modules->enable( $argument );
+        return $this->modules->enable($argument);
     }
 
     /**
      * @param string module identifier
      * @return array operation response
      */
-    public function deleteModule( $argument )
+    public function deleteModule($argument)
     {
-        return $this->modules->delete( $argument );
+        return $this->modules->delete($argument);
     }
 
     public function showUploadModule()
     {
-        return $this->view( 'pages.dashboard.modules.upload', [
-            'title' => __( 'Upload A Module' ),
-            'description' => __( 'Extends NexoPOS features with some new modules.' ),
+        return View::make('pages.dashboard.modules.upload', [
+            'title' => __('Upload A Module'),
+            'description' => __('Extends NexoPOS features with some new modules.'),
         ]);
     }
 
@@ -145,20 +139,20 @@ class ModulesController extends DashboardController
      *
      * @return Json|Redirect response
      */
-    public function uploadModule( ModuleUploadRequest $request )
+    public function uploadModule(ModuleUploadRequest $request)
     {
-        $result = $this->modules->upload( $request->file( 'module' ) );
+        $result = $this->modules->upload($request->file('module'));
 
         /**
          * if the module upload was successful
          */
-        if ( $result[ 'status' ] === 'success' ) {
-            return redirect( ns()->route( 'ns.dashboard.modules-list' ) )->with( $result );
+        if ($result[ 'status' ] === 'success') {
+            return redirect(ns()->route('ns.dashboard.modules-list'))->with($result);
         } else {
-            $validator = Validator::make( $request->all(), [] );
-            $validator->errors()->add( 'module', $result[ 'message' ] );
+            $validator = Validator::make($request->all(), []);
+            $validator->errors()->add('module', $result[ 'message' ]);
 
-            return redirect( ns()->route( 'ns.dashboard.modules-upload' ) )->withErrors( $validator );
+            return redirect(ns()->route('ns.dashboard.modules-upload'))->withErrors($validator);
         }
     }
 }

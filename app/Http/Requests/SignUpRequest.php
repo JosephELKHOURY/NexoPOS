@@ -8,6 +8,8 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class SignUpRequest extends FormRequest
 {
+    public $redirectRoute = 'ns.register';
+
     /**
      * Determine if the user is authorized to make this request.
      *
@@ -15,10 +17,10 @@ class SignUpRequest extends FormRequest
      */
     public function authorize()
     {
-        $options = app()->make( Options::class );
+        $options = app()->make(Options::class);
 
-        if ( $options->get( 'ns_registration_enabled' ) !== 'yes' ) {
-            throw new NotAllowedException( __( 'Unable to register. The registration is closed.' ) );
+        if ($options->get('ns_registration_enabled') !== 'yes') {
+            throw new NotAllowedException(__('Unable to register. The registration is closed.'));
         }
 
         return true;
@@ -32,7 +34,7 @@ class SignUpRequest extends FormRequest
     public function rules()
     {
         return [
-            'username' => 'required|min:6',
+            'username' => 'required|min:3',
             'email' => 'email',
             'password' => 'required',
             'password_confirm' => 'same:password',

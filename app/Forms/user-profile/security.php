@@ -1,25 +1,25 @@
 <?php
 
 return [
-    'label' => __( 'Security' ),
+    'label' => __('Security'),
     'fields' => [
         [
-            'label' => __( 'Old Password' ),
+            'label' => __('Old Password'),
             'name' => 'old_password',
             'type' => 'password',
-            'description' => __( 'Provide the old password.' ),
+            'description' => __('Provide the old password.'),
         ], [
-            'label' => __( 'Password' ),
+            'label' => __('Password'),
             'name' => 'password',
             'type' => 'password',
-            'description' => __( 'Change your password with a better stronger password.' ),
-            'validation' => 'min:6',
+            'description' => __('Change your password with a better stronger password.'),
+            'validation' => 'sometimes|min:6',
         ], [
-            'label' => __( 'Password Confirmation' ),
+            'label' => __('Password Confirmation'),
             'name' => 'password_confirm',
             'type' => 'password',
-            'description' => __( 'Change your password with a better stronger password.' ),
-            'validation' => 'min:6|same:security.password',
+            'description' => __('Change your password with a better stronger password.'),
+            'validation' => 'same:password',
         ],
     ],
 ];

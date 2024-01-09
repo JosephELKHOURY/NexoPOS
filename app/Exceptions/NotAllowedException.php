@@ -2,27 +2,34 @@
 
 namespace App\Exceptions;
 
+use App\Services\Helper;
 use Exception;
 
 class NotAllowedException extends Exception
 {
-    public function __construct( $message = null )
+    public function __construct($message = null)
     {
-        $this->message = $message ?: __('The Action You Tried To Perform Is Not Allowed.' );
+        $this->message = $message ?: __('The Action You Tried To Perform Is Not Allowed.');
     }
 
-    public function render( $request )
+    public function getStatusCode()
     {
-        if ( ! $request->expectsJson() ) {
-            return response()->view( 'pages.errors.not-allowed', [
-                'title' => __( 'Not Allowed Action' ),
+        return 403;
+    }
+
+    public function render($request)
+    {
+        if (! $request->expectsJson()) {
+            return response()->view('pages.errors.not-allowed', [
+                'title' => __('Not Allowed Action'),
                 'message' => $this->getMessage(),
+                'back' => Helper::getValidPreviousUrl($request),
             ]);
         }
 
         return response()->json([
             'status' => 'failed',
-            'message' => $this->getMessage() ?: __('The action you tried to perform is not allowed.' ),
+            'message' => $this->getMessage() ?: __('The action you tried to perform is not allowed.'),
         ], 401);
     }
 }

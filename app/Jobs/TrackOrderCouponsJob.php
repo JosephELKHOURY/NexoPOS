@@ -12,14 +12,14 @@ use Illuminate\Queue\InteractsWithQueue;
 
 class TrackOrderCouponsJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, NsSerialize;
+    use Dispatchable, InteractsWithQueue, NsSerialize, Queueable;
 
     /**
      * Create a new job instance.
      *
      * @return void
      */
-    public function __construct( public Order $order )
+    public function __construct(public Order $order)
     {
         $this->prepareSerialization();
     }
@@ -29,13 +29,8 @@ class TrackOrderCouponsJob implements ShouldQueue
      *
      * @return void
      */
-    public function handle()
+    public function handle(OrdersService $ordersService)
     {
-        /**
-         * @var OrdersService
-         */
-        $orderService = app()->make( OrdersService::class );
-
-        $orderService->trackOrderCoupons( $this->order );
+        $ordersService->trackOrderCoupons($this->order);
     }
 }

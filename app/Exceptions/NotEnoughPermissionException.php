@@ -2,27 +2,34 @@
 
 namespace App\Exceptions;
 
+use App\Services\Helper;
 use Exception;
 
 class NotEnoughPermissionException extends Exception
 {
-    public function __construct( $message = null )
+    public function getStatusCode()
     {
-        $this->message = $message ?: __('A Database Exception Occurred.' );
+        return 403;
     }
 
-    public function render( $request )
+    public function __construct($message = null)
     {
-        if ( ! $request->expectsJson() ) {
-            return response()->view( 'pages.errors.not-enough-permissions', [
-                'title' => __( 'Not Enough Permissions' ),
-                'message' => $this->getMessage() ?: __('You\'re not allowed to see that page.' ),
+        $this->message = $message ?: __('You\'re not allowed to see that page.');
+    }
+
+    public function render($request)
+    {
+        if (! $request->expectsJson()) {
+            return response()->view('pages.errors.not-enough-permissions', [
+                'title' => __('Not Enough Permissions'),
+                'message' => $this->getMessage(),
+                'back' => Helper::getValidPreviousUrl($request),
             ]);
         }
 
         return response()->json([
             'status' => 'failed',
-            'message' => $this->getMessage() ?: __('You\'re not allowed to see that page.' ),
+            'message' => $this->getMessage(),
         ], 401);
     }
 }

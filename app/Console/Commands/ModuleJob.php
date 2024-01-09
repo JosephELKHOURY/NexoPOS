@@ -40,35 +40,42 @@ class ModuleJob extends Command
      */
     public function handle()
     {
-        $modules = app()->make( ModulesService::class );
+        $modules = app()->make(ModulesService::class);
 
         /**
          * Check if module is defined
          */
-        if ( $module = $modules->get( $this->argument( 'namespace' ) ) ) {
+        if ($module = $modules->get($this->argument('namespace'))) {
             /**
              * Define Variables
              */
             $jobsPath = $module[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Jobs' . DIRECTORY_SEPARATOR;
-            $name = ucwords( Str::camel( $this->argument( 'name' ) ) );
+            $name = ucwords(Str::camel($this->argument('name')));
             $fileName = $jobsPath . $name;
-            $namespace = $this->argument( 'namespace' );
+            $namespace = $this->argument('namespace');
+            $relativePath = 'modules' . DIRECTORY_SEPARATOR . $fileName;
 
-            $fileExists = Storage::disk( 'ns-modules' )->exists(
+            $fileExists = Storage::disk('ns-modules')->exists(
                 $fileName . '.php'
             );
 
-            if ( ! $fileExists || ( $fileExists && $this->option( 'force' ) ) ) {
-                Storage::disk( 'ns-modules' )->put( $fileName . '.php', view( 'generate.modules.job', compact(
+            if (! $fileExists || ($fileExists && $this->option('force'))) {
+                Storage::disk('ns-modules')->put($fileName . '.php', view('generate.modules.job', compact(
                     'modules', 'module', 'name', 'namespace'
-                ) ) );
+                )));
 
-                return $this->info( 'The job has been created !' );
+                return $this->info(
+                    sprintf(
+                        'Job %s created successfully in %s',
+                        $name,
+                        $relativePath . '.php'
+                    )
+                );
             }
 
-            return $this->error( 'The job already exists !' );
+            return $this->error('The job already exists !');
         }
 
-        return $this->error( 'Unable to locate the module !' );
+        return $this->error('Unable to locate the module !');
     }
 }

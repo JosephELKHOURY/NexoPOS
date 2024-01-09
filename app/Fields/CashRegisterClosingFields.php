@@ -7,20 +7,20 @@ use App\Services\FieldsService;
 
 class CashRegisterClosingFields extends FieldsService
 {
-    protected $identifier = 'ns.cash-registers-closing';
+    protected static $identifier = 'ns.cash-registers-closing';
 
     public function get()
     {
-        $fields = Hook::filter( 'ns-cash-register-closing-fields', [
+        $fields = Hook::filter('ns-cash-register-closing-fields', [
             [
-                'label' => __( 'Amount' ),
-                'description' => __( 'define the amount of the transaction.' ),
+                'label' => __('Amount'),
+                'description' => __('define the amount of the transaction.'),
                 'validation' => 'required',
                 'name' => 'amount',
                 'type' => 'hidden',
             ], [
-                'label' => __( 'Description' ),
-                'description' => __( 'Further observation while proceeding.' ),
+                'label' => __('Description'),
+                'description' => __('Further observation while proceeding.'),
                 'name' => 'description',
                 'type' => 'textarea',
             ],

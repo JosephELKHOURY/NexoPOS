@@ -19,7 +19,7 @@ class ResolveInstalmentJob implements ShouldQueue
      *
      * @return void
      */
-    public function __construct( public Order $order )
+    public function __construct(public Order $order)
     {
         //
     }
@@ -29,12 +29,8 @@ class ResolveInstalmentJob implements ShouldQueue
      *
      * @return void
      */
-    public function handle()
+    public function handle(OrdersService $ordersService)
     {
-        /**
-         * @var OrdersService
-         */
-        $ordersService = app()->make( OrdersService::class );
-        $ordersService->resolveInstalments( $this->order );
+        $ordersService->resolveInstalments($this->order);
     }
 }
