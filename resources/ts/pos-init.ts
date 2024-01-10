@@ -51,11 +51,11 @@ const nsPosShippingPopup        = (<any>window).nsPosShippingPopup = defineAsync
 declare const systemOptions;
 declare const systemUrls;
 
-const nsCashPayment	=  (<any>window).nsCashPayment = require('./pages/dashboard/pos/payments/cash-payment').default;
-const nsCreditCardPayment	=  (<any>window).nsCreditCardPayment = require('./pages/dashboard/pos/payments/creditcard-payment').default;
-const nsBankPayment	=  (<any>window).nsBankPayment = require('./pages/dashboard/pos/payments/bank-payment').default;
-const nsAccountPayment	=  (<any>window).nsAccountPayment = require('./pages/dashboard/pos/payments/account-payment').default;
-const nsPosDiscountPopup = (<any>window).nsPosDiscountPopup = require('./popups/ns-pos-' + 'discount' + '-popup').default;
+const nsPosDiscountPopup      = (<any>window).nsPosDiscountPopup = defineAsyncComponent( () => import('./popups/ns-pos-' + 'discount' + '-popup.vue' ) );
+const BankPayment      = (<any>window).BankPayment = defineAsyncComponent( () => import('./pages/dashboard/pos/payments/bank-payment.vue' ) );
+const AccountPayment      = (<any>window).AccountPayment = defineAsyncComponent( () => import('./pages/dashboard/pos/payments/account-payment.vue' ) );
+const nsPosLoadingPopupVue         = (<any>window).nsPosLoadingPopupVue = defineAsyncComponent( () => import('./popups/ns-pos-' + 'loading' + '-popup.vue' ) );
+
 
 export class POS {
     private _cartButtons: BehaviorSubject<{ [key: string]: any }>;
