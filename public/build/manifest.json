@@ -2730,7 +2730,7 @@
     "src": "resources/ts/pages/setup/welcome.vue"
   },
   "resources/ts/popups.ts": {
-    "file": "assets/popups-841be88a.js",
+    "file": "assets/popups-dadc1587.js",
     "imports": [
       "_components-3720d0e5.js",
       "_npm~@vue~runtime-dom_-725465db.js",
@@ -2900,7 +2900,7 @@
       "_ns-pos-order-type-popup-92f92146.js",
       "_ns-prompt-popup-e2869fb5.js"
     ],
-    "file": "assets/pos-init-4ca16ee4.js",
+    "file": "assets/pos-init-6bbe6f42.js",
     "imports": [
       "_preload-helper-a4192956.js",
       "_ns-pos-order-type-popup-92f92146.js",
@@ -2910,12 +2910,12 @@
       "_npm~@vue~runtime-core_-19758cc2.js",
       "_npm~@vue~shared_-951a29c4.js",
       "_ns-prompt-popup-e2869fb5.js",
+      "_npm~@vue~reactivity_-7ae94d11.js",
       "_npm~moment-a9aaa855.js",
       "_ns-orders-preview-popup-39d14980.js",
       "_npm~rxjs-eeb06f17.js",
       "_npm~mathjs-befa2efb.js",
       "_npm~@vue~runtime-dom_-725465db.js",
-      "_npm~@vue~reactivity_-7ae94d11.js",
       "_npm~lodash-9a4afe3d.js",
       "_npm~@ckeditor~ckeditor5-build-classic_-27365139.js",
       "_npm~laravel-echo-198fd56d.js",
