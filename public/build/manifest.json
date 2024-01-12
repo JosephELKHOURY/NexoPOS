@@ -574,7 +574,7 @@
       "resources/ts/pages/dashboard/orders/ns-order-invoice.vue",
       "resources/ts/pages/dashboard/profile/ns-token.vue"
     ],
-    "file": "assets/app-2ddbf62a.js",
+    "file": "assets/app-8a9c5b6c.js",
     "imports": [
       "_preload-helper-a4192956.js",
       "_ns-hotpress-97b0c085.js",
@@ -1806,7 +1806,7 @@
     "src": "resources/ts/pages/dashboard/procurements/ns-procurement-invoice.vue"
   },
   "resources/ts/pages/dashboard/procurements/ns-procurement.vue": {
-    "file": "assets/ns-procurement-7d41e9a3.js",
+    "file": "assets/ns-procurement-e6c8692b.js",
     "imports": [
       "resources/ts/bootstrap.ts",
       "resources/ts/pages/dashboard/procurements/manage-products.vue",
