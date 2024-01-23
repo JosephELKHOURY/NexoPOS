@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:public/build/assets/npm~vue-router-4fd314d1.js
 import{y as tt,F as W,s as nt,k as rt,r as st}from"./npm~@vue~reactivity_-7ae94d11.js";import{n as ot,e as Be,$ as Y,y as N,h as qe,ah as ce,aD as it}from"./npm~@vue~runtime-core_-19758cc2.js";/*!
-========
-import{y as tt,F as W,s as nt,k as rt,r as st}from"./npm~@vue~reactivity_-26e9e2f4.js";import{n as ot,e as Be,$ as Y,y as N,h as qe,ah as ce,aD as it}from"./npm~@vue~runtime-core_-0a26b3ab.js";/*!
->>>>>>>> b57ba272c3f9faf9af443e04b50c26fab8415b94:public/build/assets/npm~vue-router-b33777c6.js
   * vue-router v4.2.5
   * (c) 2023 Eduardo San Martin Morote
   * @license MIT

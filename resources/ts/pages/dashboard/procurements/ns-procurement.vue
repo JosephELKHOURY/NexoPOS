@@ -671,27 +671,17 @@ export default {
 
             return __( 'N/A' );
         },
-<<<<<<< HEAD
         
-=======
-
->>>>>>> b57ba272c3f9faf9af443e04b50c26fab8415b94
         handleSavedEvent( event, field ) {
             if ( event.data ) {
                 field.options.push({
                     label: event.data.entry.first_name,
                     value: event.data.entry.id
                 });
-<<<<<<< HEAD
-                field.value     =   event.data.entry.id;
-            }
-    		}
-=======
 
                 field.value     =   event.data.entry.id;
             }
         }
->>>>>>> b57ba272c3f9faf9af443e04b50c26fab8415b94
     }
 }
 </script>
