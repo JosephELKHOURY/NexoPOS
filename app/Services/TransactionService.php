@@ -16,7 +16,6 @@ use App\Models\CustomerAccountHistory;
 use App\Models\Order;
 use App\Models\OrderProduct;
 use App\Models\OrderProductRefund;
-use App\Models\OrderRefund;
 use App\Models\Procurement;
 use App\Models\Role;
 use App\Models\Transaction;
@@ -460,50 +459,82 @@ class TransactionService
              * this behave as a flash transaction
              * made only for recording an history.
              */
-            $transaction = new Transaction;
+            $transaction = TransactionHistory::where('procurement_id', $procurement->id)->firstOrNew();
             $transaction->value = $procurement->cost;
-            $transaction->active = true;
             $transaction->author = $procurement->author;
             $transaction->procurement_id = $procurement->id;
             $transaction->name = sprintf(__('Procurement : %s'), $procurement->name);
-            $transaction->id = 0; // this is not assigned to an existing transaction
-            $transaction->account = $accountTypeCode;
+            $transaction->transaction_account_id = $accountTypeCode->id;
+            $transaction->operation = 'debit';
             $transaction->created_at = $procurement->created_at;
             $transaction->updated_at = $procurement->updated_at;
+            $transaction->save();
 
-            $this->recordTransactionHistory($transaction);
+        } elseif (
+            $procurement->payment_status === Procurement::PAYMENT_UNPAID &&
+            $procurement->delivery_status === Procurement::STOCKED
+        ) {
+            /**
+             * If the procurement is not paid, we'll
+             * record a liability for the procurement.
+             */
+            $accountTypeCode = $this->getTransactionAccountByCode(TransactionHistory::ACCOUNT_LIABILITIES);
+
+            /**
+             * this behave as a flash transaction
+             * made only for recording an history.
+             */
+            $transaction = TransactionHistory::where('procurement_id', $procurement->id)->firstOrNew();
+            $transaction->value = $procurement->cost;
+            $transaction->author = $procurement->author;
+            $transaction->procurement_id = $procurement->id;
+            $transaction->name = sprintf(__('Procurement Liability : %s'), $procurement->name);
+            $transaction->transaction_account_id = $accountTypeCode->id;
+            $transaction->operation = 'debit';
+            $transaction->created_at = $procurement->created_at;
+            $transaction->updated_at = $procurement->updated_at;
+            $transaction->save();
         }
     }
 
     /**
-     * Will record a transaction resulting from a paid order
-     *
-     * @return void
+     * Create a direct transaction history
      */
-    public function createTransactionFormRefundedOrderShipping( Order $order, OrderRefund $orderRefund )
-    {
-        /**
-         * If the order shipping is greater than 0
-         * this means the shipping has been refunded
-         */
-        if ( $orderRefund->shipping > 0 ) {
-            $transactionAccount = $this->getTransactionAccountByCode( TransactionHistory::ACCOUNT_REFUNDS );
+    public function createTransactionHistory(
+        string $operation,
+        $transaction_id = null,
+        $transaction_account_id = null,
+        $procurement_id = null,
+        $order_refund_id = null,
+        $order_refund_product_id = null,
+        $order_id = null,
+        $order_product_id = null,
+        $register_history_id = null,
+        $customer_account_history_id = null,
+        $name = null,
+        $status = TransactionHistory::STATUS_ACTIVE,
+        $value = 0,
+    ) {
+        $tansactionHistory = new TransactionHistory;
 
-            $transaction = new Transaction;
-            $transaction->value = $orderRefund->shipping;
-            $transaction->active = true;
-            $transaction->operation = TransactionHistory::OPERATION_DEBIT;
-            $transaction->author = $orderRefund->author;
-            $transaction->order_id = $order->id;
-            $transaction->order_refund_id = $orderRefund->id;
-            $transaction->name = sprintf( __( 'Refund Shipping : %s' ), $order->code );
-            $transaction->id = 0; // this is not assigned to an existing transaction
-            $transaction->account = $transactionAccount;
-            $transaction->created_at = $orderRefund->created_at;
-            $transaction->updated_at = $orderRefund->updated_at;
+        $tansactionHistory->transaction_id = $transaction_id;
+        $tansactionHistory->operation = $operation;
+        $tansactionHistory->transaction_account_id = $transaction_account_id;
+        $tansactionHistory->procurement_id = $procurement_id;
+        $tansactionHistory->order_refund_id = $order_refund_id;
+        $tansactionHistory->order_refund_product_id = $order_refund_product_id;
+        $tansactionHistory->order_id = $order_id;
+        $tansactionHistory->order_product_id = $order_product_id;
+        $tansactionHistory->register_history_id = $register_history_id;
+        $tansactionHistory->customer_account_history_id = $customer_account_history_id;
+        $tansactionHistory->name = $name;
+        $tansactionHistory->status = $status;
+        $tansactionHistory->value = $value;
+        $tansactionHistory->author = Auth::id();
 
-            $this->recordTransactionHistory( $transaction );
-        }
+        $tansactionHistory->save();
+
+        return $tansactionHistory;
     }
 
     /**
@@ -681,6 +712,8 @@ class TransactionService
             switch ($type) {
                 case TransactionHistory::ACCOUNT_CUSTOMER_CREDIT: $label = __('Customer Credit Account');
                     break;
+                case TransactionHistory::ACCOUNT_LIABILITIES: $label = __('Liabilities Account');
+                    break;
                 case TransactionHistory::ACCOUNT_CUSTOMER_DEBIT: $label = __('Customer Debit Account');
                     break;
                 case TransactionHistory::ACCOUNT_PROCUREMENTS: $label = __('Procurements Account');
@@ -714,6 +747,7 @@ class TransactionService
      * Will process refunded orders
      *
      * @todo the method might no longer be in use.
+     *
      * @param string $rangeStart
      * @param string $rangeEnds
      * @return void

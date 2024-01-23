@@ -166,9 +166,11 @@ class ProductCrud extends CrudService
 
         $fields = [
             [
-                'type' => 'select',
+                'type' => 'search-select',
                 'errors' => [],
                 'name' => 'unit_id',
+                'component' => 'nsCrudForm',
+                'props' => UnitCrud::getFormConfig(),
                 'options' => Helper::toJsOptions($units, [ 'id', 'name' ]),
                 'label' => __('Assigned Unit'),
                 'description' => __('The assigned unit for sale'),
@@ -266,7 +268,9 @@ class ProductCrud extends CrudService
                                     'validation' => 'required',
                                     'value' => $entry->name ?? '',
                                 ], [
-                                    'type' => 'select',
+                                    'type' => 'search-select',
+                                    'component' => 'nsCrudForm',
+                                    'props' => ProductCategoryCrud::getFormConfig(),
                                     'description' => __('Select to which category the item is assigned.'),
                                     'options' => Helper::toJsOptions(ProductCategory::get(), [ 'id', 'name' ]),
                                     'name' => 'category_id',
@@ -380,6 +384,14 @@ class ProductCrud extends CrudService
                             'label' => __('Units'),
                             'fields' => [
                                 [
+                                    'type' => 'select',
+                                    'options' => Helper::toJsOptions($groups, [ 'id', 'name' ]),
+                                    'name' => 'unit_group',
+                                    'description' => __('What unit group applies to the actual item. This group will apply during the procurement.'),
+                                    'label' => __('Unit Group'),
+                                    'validation' => 'required',
+                                    'value' => $entry->unit_group ?? (! $groups->isEmpty() ? $groups->first()->id : ''),
+                                ], [
                                     'type' => 'switch',
                                     'description' => __('The product won\'t be visible on the grid and fetched only using the barcode reader or associated barcode.'),
                                     'options' => Helper::boolToOptions(
@@ -399,14 +411,6 @@ class ProductCrud extends CrudService
                                     'name' => 'auto_cogs',
                                     'label' => __('Auto COGS'),
                                     'value' => $entry->auto_cogs ?? true,
-                                ], [
-                                    'type' => 'select',
-                                    'options' => Helper::toJsOptions($groups, [ 'id', 'name' ]),
-                                    'name' => 'unit_group',
-                                    'description' => __('What unit group applies to the actual item. This group will apply during the procurement.'),
-                                    'label' => __('Unit Group'),
-                                    'validation' => 'required',
-                                    'value' => $entry->unit_group ?? (! $groups->isEmpty() ? $groups->first()->id : ''),
                                 ], [
                                     'type' => 'group',
                                     'name' => 'selling_group',

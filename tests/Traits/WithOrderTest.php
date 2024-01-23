@@ -2253,6 +2253,7 @@ trait WithOrderTest
                 'payment' => [
                     'identifier' => 'account-payment',
                 ],
+                'refund_shipping' => true,
                 'total' => $responseData[ 'data' ][ 'order' ][ 'total' ],
                 'refund_shipping' => true,
                 'products' => $responseData[ 'data' ][ 'order' ][ 'products' ],

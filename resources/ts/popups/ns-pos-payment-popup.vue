@@ -37,6 +37,7 @@ export default {
         this.orderSubscription          =   POS.order.subscribe( order => {
             this.order  =   ref( order );
         });
+
         this.activePaymentSubscription  =   POS.selectedPaymentType.subscribe( activePayment => {
             this.activePayment = activePayment;
             if ( activePayment !== null ) {

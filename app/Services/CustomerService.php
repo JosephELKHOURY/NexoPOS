@@ -109,7 +109,10 @@ class CustomerService
     public function search(int|string $argument): Collection
     {
         $customers = Customer::with([ 'billing', 'shipping', 'group' ])
+<<<<<<< HEAD
             ->with('shipping')
+=======
+>>>>>>> b57ba272c3f9faf9af443e04b50c26fab8415b94
             ->orWhere('first_name', 'like', '%' . $argument . '%')
             ->orWhere('last_name', 'like', '%' . $argument . '%')
             ->orWhere('email', 'like', '%' . $argument . '%')

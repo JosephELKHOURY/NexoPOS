@@ -195,23 +195,34 @@ export class POS {
     }
 
     async reset() {
-        this._isSubmitting = false;
+        return new Promise(async (resolve, reject) => {
+            try {
+                this._isSubmitting = false;
 
-        /**
-         * to reset order details
-         */
-        this.order.next(this.defaultOrder());
-        this.products.next([]);
-        this._customers.next([]);
-        this._breadcrumbs.next([]);
-        this._cartButtons.next({});
-        this.defineCurrentScreen();
-        this.setHoldPopupEnabled(true);
+                /**
+                 * to reset order details
+                 */
+                this.order.next(this.defaultOrder());
+                this.products.next([]);
+                this._customers.next([]);
+                this._breadcrumbs.next([]);
+                this._cartButtons.next({});
+                this.defineCurrentScreen();
+                this.setHoldPopupEnabled(true);
 
-        await this.processInitialQueue();
+                nsHooks.doAction( 'ns-before-cart-reset' );
 
-        nsHooks.doAction( 'ns-after-cart-changed' );
-        nsHooks.doAction( 'ns-after-cart-reset' );
+                
+                await this.processInitialQueue();
+
+                nsHooks.doAction( 'ns-after-cart-changed' );
+                nsHooks.doAction( 'ns-after-cart-reset' );
+
+                resolve( true );
+            } catch ( exception ) {
+                reject( exception );
+            }
+        });
     }
 
     public initialize() {
@@ -309,7 +320,7 @@ export class POS {
 
             return resolve({
                 status: 'success',
-                message: 'tax group assignated'
+                message: 'no default customer is selected.'
             });
         }));
 
@@ -390,16 +401,23 @@ export class POS {
      * This is the first initial queue
      * that runs when the POS is loaded. 
      * It also run when the pos is reset.
-     * @return void
      */
     async processInitialQueue() {
-        for (let index in this._initialQueue) {
-            try {
-                const response = await this._initialQueue[index]();
-            } catch (exception) {
-                nsSnackBar.error(exception.message).subscribe();
+        return new Promise( async ( resolve, reject ) => {
+            for (let index in this._initialQueue) {
+                try {
+                    const response = await Promise.race([
+                        this._initialQueue[index](),
+                        new Promise((_, timeoutReject) => setTimeout(() => timeoutReject(new Error('Timeout')), 60000)) // 5 seconds timeout
+                    ]);
+                } catch (exception) {
+                    reject( exception );
+                    nsSnackBar.error(exception.message).subscribe();
+                }
             }
-        }
+
+            resolve( true );
+        });
     }
 
     /**
@@ -1072,11 +1090,11 @@ export class POS {
          * There should be a better
          * way of writing this.
          */
-        if ( options.ns_pos_printing_enabled_for === 'all_orders' ) {
-            this.print.process( order.id, 'sale', mode );
-        } else if ( options.ns_pos_printing_enabled_for === 'partially_paid_orders' && [ 'paid', 'partially_paid' ].includes( order.payment_status ) ) {
-            this.print.process( order.id, 'sale', mode );
-        } else if ( options.ns_pos_printing_enabled_for === 'only_paid_orders' && [ 'paid' ].includes( order.payment_status ) ) {
+        if ( 
+            ( options.ns_pos_printing_enabled_for === 'all_orders'  ) ||
+            ( options.ns_pos_printing_enabled_for === 'partially_paid_orders' && [ 'paid', 'partially_paid' ].includes( order.payment_status ) ) ||
+            ( options.ns_pos_printing_enabled_for === 'only_paid_orders' && [ 'paid' ].includes( order.payment_status ) )
+        ) {
             this.print.process( order.id, 'sale', mode );
         } else {
             return false;

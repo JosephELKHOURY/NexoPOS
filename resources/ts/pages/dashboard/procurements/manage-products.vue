@@ -70,7 +70,7 @@
                                 <div class="-mx-4 flex flex-wrap" v-if="! [ 'images', 'units', 'groups' ].includes( getActiveTabKey( variation.tabs ) )">
                                     <template v-for="( field, index ) of getActiveTab( variation.tabs ).fields" :key="index">
                                         <div class="flex flex-col px-4 w-full md:w-1/2 lg:w-1/3">
-                                            <ns-field :field="field"></ns-field>
+                                            <ns-field @saved="handleSaved( $event, getActiveTabKey( variation.tabs ), variation_index, field )" :field="field"></ns-field>
                                         </div>
                                     </template>
                                 </div>
@@ -105,8 +105,7 @@
                                 </div>
                                 <div class="-mx-4 flex flex-wrap" v-if="getActiveTabKey( variation.tabs ) === 'units'">
                                     <div class="px-4 w-full md:w-1/2 lg:w-1/3">
-                                        <ns-field @change="loadAvailableUnits( getActiveTab( variation.tabs ) )" :field="getActiveTab( variation.tabs ).fields[0]"></ns-field>
-                                        <ns-field @change="loadAvailableUnits( getActiveTab( variation.tabs ) )" :field="getActiveTab( variation.tabs ).fields[1]"></ns-field>
+                                        <ns-field v-for="field in getActiveTab( variation.tabs ).fields.filter( field => field.name !== 'selling_group' )" @change="loadAvailableUnits( getActiveTab( variation.tabs ) )" :field="field"></ns-field>
                                     </div>
                                     <template v-if="unitLoaded">
                                         <template v-for="(field,index) of getActiveTab( variation.tabs ).fields">
@@ -131,7 +130,7 @@
                                                                 <span>{{ getUnitQuantity( group_fields ) }}</span>
                                                             </div>
                                                             <div class="p-2 mb-2">
-                                                                <ns-field :field="field" v-for="(field,index) of group_fields" :key="index"></ns-field>
+                                                                <ns-field @saved="handleSavedUnitGroupFields( $event, field )" :field="field" v-for="(field,index) of group_fields" :key="index"></ns-field>
                                                             </div>
                                                             <div @click="removeUnitPriceGroup( group_fields, field.groups )" class="p-1 hover:bg-error-primary border-t border-box-elevation-edge flex items-center justify-center cursor-pointer font-medium">
                                                                 {{ __( 'Delete' ) }}
@@ -257,6 +256,18 @@ export default {
     methods: {
         __,
         nsCurrency,
+        async handleSaved( event, activeTabKey, variationIndex, field ) {
+            if ( event.data.entry ) {
+                
+                const rawComponent = await this.loadForm();
+
+                rawComponent.form.variations[ variationIndex ].tabs[ activeTabKey ].fields.forEach( __field => {
+                    if ( __field.name === field.name ) {
+                        __field.value   =   event.data.entry.id;
+                    }
+                });
+            }
+        },
         getGroupProducts( tabs ) {
             if ( tabs[ 'groups' ] ) {
                 const products  =   tabs.groups.fields.filter( field => field.name === 'products_subitems' );
@@ -481,7 +492,7 @@ export default {
                             nsSnackBar.info( result.message, __( 'Okay' ), { duration: 3000 }).subscribe();
                         }
 
-                        this.$emit( 'save' );
+                        this.$emit( 'saved' );
                     }
                     this.formValidation.enableForm( this.form );
                 }, ( error ) => {
@@ -579,19 +590,23 @@ export default {
             return form;
         },
         loadForm() {
-            const request   =   nsHttpClient.get( `${this.src}` );
-            this.hasLoaded  =   false;
-            this.hasError   =   false;
+            return new Promise( ( resolve, reject ) => {
+                const request   =   nsHttpClient.get( `${this.src}` );
+                this.hasLoaded  =   false;
+                this.hasError   =   false;
 
-            request.subscribe({
-                next: f => {
-                    this.hasLoaded  =   true;
-                    this.form    =   this.parseForm( f.form );
-                },
-                error: error => {
-                    this.hasError   =   true;
-                }
-            });
+                request.subscribe({
+                    next: f => {
+                        resolve( f );
+                        this.hasLoaded  =   true;
+                        this.form    =   this.parseForm( f.form );
+                    },
+                    error: error => {
+                        reject( error );
+                        this.hasError   =   true;
+                    }
+                });
+            })
         },
         addImage( variation ) {
             variation.tabs.images.groups.push(
@@ -603,9 +618,19 @@ export default {
             const index     =   variation.tabs.images.groups.indexOf( group );
             variation.tabs.images.groups.splice( index, 1 );
         },
+        handleSavedUnitGroupFields( event, field ) {
+            if ( event.data ) {
+                field.options.push({
+                    label: event.data.entry.name,
+                    value: event.data.entry.id
+                });
+
+                field.value = event.data.entry.id;
+            }
+        }
     },
-    mounted() {
-        this.loadForm();
+    async mounted() {
+        await this.loadForm();        
     },
     name: 'ns-manage-products',
 }

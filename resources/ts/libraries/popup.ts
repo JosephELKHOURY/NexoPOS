@@ -76,10 +76,20 @@ export class Popup {
          * We'll add the new popups
          * to the popups stack.
          */
+        let props   =   {};
+        
+        if ( component.props ) {
+            props     =   Object.keys( params ).filter( param => component.props.includes( param ) ).reduce( ( props, param ) => {
+                props[ param ]  =   params[ param ];
+                return props;
+            }, {});
+        }
+        
         const popup     =   {
             hash: `popup-${this.hash()}-${this.hash()}`,
             component: shallowRef( component ),
             close: ( callback = null ) => this.close( popup, callback ),
+            props,
             params,
             config,
         };

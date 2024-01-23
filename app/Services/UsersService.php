@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Classes\Hook;
 use App\Exceptions\NotAllowedException;
 use App\Exceptions\NotFoundException;
 use App\Mail\ActivateYourAccountMail;
@@ -13,7 +12,6 @@ use App\Models\User;
 use App\Models\UserAttribute;
 use App\Models\UserRoleRelation;
 use App\Models\UserWidget;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Auth;
@@ -196,54 +194,6 @@ class UsersService
             $relation->role_id = $roleId;
             $relation->save();
         }
-    }
-
-    /**
-     * Activate account using a
-     * code and the user id
-     *
-     * @param string coe
-     * @param int user id
-     * @return AsyncResponse
-     */
-    public function activateAccount($code, $user_id)
-    {
-        $user = User::find($user_id);
-        $date = app()->make(DateService::class);
-
-        if (! $user instanceof User) {
-            throw new Exception(__('The activation process has failed.'));
-        }
-
-        $userOptions = new UserOptions($user->id);
-        $activationCode = $userOptions->get('activation-code');
-        $expiration = $userOptions->get('activation-expiration');
-
-        if ($activationCode !== $code) {
-            throw new Exception(
-                __('Unable to activate the account. The activation token is wrong.')
-            );
-        }
-
-        if ($date->greaterThan(Carbon::parse($expiration))) {
-            throw new Exception(
-                __('Unable to activate the account. The activation token has expired.')
-            );
-        }
-
-        $user->active = true;
-        $user->save();
-
-        /**
-         * we might need to send some
-         * email ?
-         */
-        Hook::action('user.activated', $user);
-
-        return [
-            'status' => 'success',
-            'message' => __('The account has been successfully activated.'),
-        ];
     }
 
     /**
