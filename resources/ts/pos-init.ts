@@ -1577,10 +1577,18 @@ export class POS {
     defineTypes(types) {
         this._types.next(types);
     }
+    
+    removeProductUsingIndex(index) {
+        const products = this._products.getValue();
+        products.splice(index, 1);
+        this.products.next(products);
+        nsHooks.doAction( 'ns-after-cart-changed' );
+    }
 
     removeProduct(product) {
         const products = this._products.getValue();
         const index = products.indexOf(product);
+        console.log({ index, product, products })
         products.splice(index, 1);
         this.products.next(products);
         nsHooks.doAction( 'ns-after-cart-changed' );
