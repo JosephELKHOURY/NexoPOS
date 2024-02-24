@@ -5,7 +5,12 @@
   "typography.scss": "typography.5d798833a07dd150efa8.scss",
   "animations.scss": "animations.6427e7be654ba187bbeb.scss",
   "dark.scss": "dark.233504020ba1f8dd59e8.scss",
+<<<<<<< HEAD
   "fonts.scss": "fonts.d33aefc1b229a72984cc.scss",
   "line-awesome.scss": "line-awesome.73683c27f599c3da8c1f.scss",
+=======
+  "fonts.scss": "fonts.f7e1d0b9dd5969824d8e.scss",
+  "line-awesome.scss": "line-awesome.532e7db520cc7d6c43ac.scss",
+>>>>>>> efecc83741ec29e9a830379f4052af029028cdff
   "vue2-daterange-picker.css": "vue2-daterange-picker.fe9e4f57ad74c98c9324.css"
 }

@@ -16,6 +16,7 @@ use Error as GlobalError;
 use Exception;
 use Illuminate\Contracts\View\View as ViewView;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
@@ -81,7 +82,7 @@ class ModulesService
      *
      * @param string path to load
      */
-    public function load(?string $dir = null): void
+    public function load(string $dir = null): void
     {
         /**
          * If we're not loading a specific module directory
@@ -331,7 +332,7 @@ class ModulesService
      * Will check for a specific module or all the module
      * enabled if there is a dependency error.
      */
-    public function dependenciesCheck(?array $module = null): void
+    public function dependenciesCheck(array $module = null): void
     {
         if ($module === null) {
             collect($this->getEnabled())->each(function ($module) {
@@ -1110,7 +1111,7 @@ class ModulesService
     /**
      * Enables module using a provided namespace
      */
-    public function enable(string $namespace): array
+    public function enable(string $namespace): array | JsonResponse
     {
         $this->checkManagementStatus();
 

@@ -88,7 +88,7 @@ class WidgetService
      * Return a boolean if the logged user
      * is allowed to see the current widget
      */
-    public function canAccess(?User $user = null): bool
+    public function canAccess(User $user = null): bool
     {
         return ! $this->permission ?: ($user == null ? Gate::allows($this->permission) : Gate::forUser($user)->allows($this->permission));
     }
@@ -106,10 +106,10 @@ class WidgetService
             $widgetInstance = new $widget;
 
             return (object) [
-                'className' => $widget,
+                'class-name' => $widget,
                 'instance' => $widgetInstance,
                 'name' => $widgetInstance->getName(),
-                'component' => $widgetInstance->getVueComponent(),
+                'component-name' => $widgetInstance->getVueComponent(),
                 'canAccess' => $widgetInstance->canAccess(),
             ];
         });
@@ -214,8 +214,8 @@ class WidgetService
             $widgetInstance = new $widgetClass;
 
             $areaWidgets[ $areas[ $index % 3 ] ][] = [
-                'className' => $widgetClass,
-                'componentName' => $widgetInstance->getVueComponent(),
+                'class-name' => $widgetClass,
+                'component-name' => $widgetInstance->getVueComponent(),
             ];
         }
 
