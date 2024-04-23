@@ -2,6 +2,7 @@
 
 namespace App\Crud;
 
+use App\Classes\CrudTable;
 use App\Events\CrudBeforeExportEvent;
 use App\Exceptions\NotAllowedException;
 use App\Models\CustomerAccountHistory;
@@ -16,6 +17,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 
 class CustomerAccountCrud extends CrudService
 {
+    /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.customers-account-history';
+
     /**
      * define the base table
      *
@@ -133,8 +144,6 @@ class CustomerAccountCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
 
         /**
          * We'll define custom export columns
@@ -257,17 +266,17 @@ class CustomerAccountCrud extends CrudService
      **/
     public function getLabels()
     {
-        return [
-            'list_title' => __( 'Customer Accounts List' ),
-            'list_description' => __( 'Display all customer accounts.' ),
-            'no_entry' => __( 'No customer accounts has been registered' ),
-            'create_new' => __( 'Add a new customer account' ),
-            'create_title' => __( 'Create a new customer account' ),
-            'create_description' => __( 'Register a new customer account and save it.' ),
-            'edit_title' => __( 'Edit customer account' ),
-            'edit_description' => __( 'Modify  Customer Account.' ),
-            'back_to_list' => __( 'Return to Customer Accounts' ),
-        ];
+        return CrudTable::labels(
+            list_title: __( 'Customer Accounts List' ),
+            list_description: __( 'Display all customer accounts.' ),
+            no_entry: __( 'No customer accounts has been registered' ),
+            create_new: __( 'Add a new customer account' ),
+            create_title: __( 'Create a new customer account' ),
+            create_description: __( 'Register a new customer account and save it.' ),
+            edit_title: __( 'Edit customer account' ),
+            edit_description: __( 'Modify  Customer Account.' ),
+            back_to_list: __( 'Return to Customer Accounts' ),
+        );
     }
 
     /**
@@ -494,7 +503,7 @@ class CustomerAccountCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->{ 'order_code' } = $entry->{ 'order_code' } === null ? __( 'N/A' ) : $entry->{ 'order_code' };
         $entry->operation = $this->customerService->getCustomerAccountOperationLabel( $entry->operation );
@@ -503,22 +512,22 @@ class CustomerAccountCrud extends CrudService
         $entry->next_amount = (string) ns()->currency->define( $entry->next_amount );
 
         // you can make changes here
-        $entry->addAction( 'edit', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'url' => ns()->url( '/dashboard/' . $this->slug . '/edit/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'edit',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . $this->slug . '/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/crud/ns.customers-account-history/' . $entry->id ),
-            'confirm' => [
-                'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ] );
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/ns.customers-account-history/' . $entry->id ),
+            confirm: [
+                'message' => __( 'Would you like to delete this?' ),
+            ]
+        );
 
         return $entry;
     }
@@ -547,7 +556,7 @@ class CustomerAccountCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -556,7 +565,7 @@ class CustomerAccountCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

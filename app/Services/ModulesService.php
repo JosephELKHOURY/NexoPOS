@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Classes\XMLParser;
 use App\Events\ModulesAfterDisabledEvent;
 use App\Events\ModulesAfterEnabledEvent;
 use App\Events\ModulesAfterRemovedEvent;
@@ -19,6 +20,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,8 +28,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use Laravie\Parser\Xml\Document;
-use Laravie\Parser\Xml\Reader;
 use PhpParser\Error;
 use PhpParser\ParserFactory;
 use SimpleXMLElement;
@@ -35,12 +35,9 @@ use SimpleXMLElement;
 class ModulesService
 {
     private $modules = [];
-
-    private $xmlParser;
+    private $autoloadedNamespace    =   [];
 
     private Options $options;
-
-    private $modulesPath;
 
     const CACHE_MIGRATION_LABEL = 'module-migration-';
 
@@ -51,10 +48,9 @@ class ModulesService
              * We can only enable a module if the database is installed.
              */
             $this->options = app()->make( Options::class );
-        }
 
-        $this->modulesPath = base_path( 'modules' ) . DIRECTORY_SEPARATOR;
-        $this->xmlParser = new Reader( new Document );
+            $this->autoloadedNamespace = explode( ',', env( 'AUTOLOAD_MODULES' ) );
+        }
 
         /**
          * creates the directory modules
@@ -141,16 +137,8 @@ class ModulesService
             $xmlContent = file_get_contents( $xmlConfigPath );
 
             try {
-                $xml = $this->xmlParser->extract( $xmlContent );
-                $config = $xml->parse( [
-                    'namespace' => [ 'uses' => 'namespace' ],
-                    'version' => [ 'uses' => 'version' ],
-                    'author' => [ 'uses' => 'author' ],
-                    'description' => [ 'uses' => 'description' ],
-                    'dependencies' => [ 'uses' => 'dependencies' ],
-                    'name' => [ 'uses' => 'name' ],
-                    'core' => [ 'uses' => 'core' ],
-                ] );
+                $parser = new XMLParser( $xmlConfigPath );
+                $config = (array) $parser->getXMLObject();
             } catch ( Exception $exception ) {
                 throw new Exception( sprintf(
                     __( 'Failed to parse the configuration file on the following path "%s"' ),
@@ -209,14 +197,15 @@ class ModulesService
                 $config[ 'routes-file' ] = is_file( $webRoutesPath ) ? $webRoutesPath : false;
                 $config[ 'views-path' ] = $currentModulePath . 'Resources' . DIRECTORY_SEPARATOR . 'Views';
                 $config[ 'views-relativePath' ] = 'modules' . DIRECTORY_SEPARATOR . ucwords( $config[ 'namespace' ] ) . DIRECTORY_SEPARATOR . 'Views';
+                $config[ 'autoloaded' ] = in_array( $config[ 'namespace' ], $this->autoloadedNamespace );
 
                 /**
                  * If the system is installed, then we can check if the module is enabled or not
                  * since by default it's not enabled
                  */
-                if (Helper::installed()) {
-                    $modules = $this->options->get('enabled_modules', []);
-                    $config[ 'enabled' ] = in_array($config[ 'namespace' ], (array) $modules) ? true : false;
+                if ( Helper::installed() ) {
+                    $modules = $this->options->get( 'enabled_modules', [] );
+                    $config[ 'enabled' ] = in_array( $config[ 'namespace' ], (array) $modules ) ? true : false;
                 }
 
                 /**
@@ -292,12 +281,12 @@ class ModulesService
 
     public function loadModulesMigrations(): void
     {
-        $this->modules  =   collect( $this->modules )->mapWithKeys( function( $config, $key ) {
-            $config[ 'migrations' ] = $this->__getModuleMigration($config);
-            $config[ 'all-migrations' ] = $this->getAllModuleMigrationFiles($config);
+        $this->modules = collect( $this->modules )->mapWithKeys( function ( $config, $key ) {
+            $config[ 'migrations' ] = $this->__getModuleMigration( $config );
+            $config[ 'all-migrations' ] = $this->getAllModuleMigrationFiles( $config );
 
             return [ $key => $config ];
-        })->toArray();
+        } )->toArray();
     }
 
     /**
@@ -453,11 +442,11 @@ class ModulesService
      */
     public function boot( $module = null ): void
     {
-        if ( ! empty( $module ) && $module[ 'enabled' ] ) {
+        if ( ! empty( $module ) && ($module[ 'enabled' ] || $module[ 'autoloaded' ] ) ) {
             $this->__boot( $module );
         } else {
             foreach ( $this->modules as $module ) {
-                if ( ! $module[ 'enabled' ] ) {
+                if ( ! ( $module[ 'enabled' ] || $module[ 'autoloaded' ] ) ) {
                     continue;
                 }
                 $this->__boot( $module );
@@ -509,6 +498,47 @@ class ModulesService
         }
 
         return $module;
+    }
+
+    /**
+     * Get all modules that are enabled and all modules
+     * that are set to autload without repeating them.
+     * @return Collection
+     */
+    public function getEnabledAndAutoloadedModules() 
+    {
+        /**
+         * trigger boot method only for enabled modules
+         * service providers that extends ModulesServiceProvider.
+         */
+        $autoloadedModulesNamespace  =   [];
+
+        /**
+         * We might manually set some module
+         * to always autoload, even if it's disabled.
+         */
+        if ( env( 'AUTOLOAD_MODULES' ) ) {
+            $autoloadedModulesNamespace =   explode( ',', env( 'AUTOLOAD_MODULES' ) );
+            $autoloadedModulesNamespace =   collect( $autoloadedModulesNamespace )->filter( function( $namespace ) {
+                $module = $this->get( trim( $namespace ) );
+
+                return empty( $module[ 'requires' ] );
+            })->toArray();
+        }
+
+        /**
+         * 1 - Get all enabled modules
+         * 2 - Filter out the modules that are not autoloaded
+         * 3 - Merge the autoloaded modules with the filtered modules
+         */
+        $result = collect( $this->getEnabled() )
+            ->filter( fn( $module ) => ! in_array( $module[ 'namespace' ], $autoloadedModulesNamespace ) )
+            ->merge( 
+                collect( $this->get() )
+                    ->filter( fn( $module ) => in_array( $module[ 'namespace' ], $autoloadedModulesNamespace ) )
+            );
+
+        return $result;
     }
 
     /**
@@ -711,7 +741,7 @@ class ModulesService
                 $this->clearTemporaryFiles();
 
                 return [
-                    'status' => 'failed',
+                    'status' => 'error',
                     'message' => __( 'Invalid Module provided.' ),
                 ];
             }
@@ -941,6 +971,10 @@ class ModulesService
          * Check if module exists first
          */
         if ( $module = $this->get( $namespace ) ) {
+            if ( $module[ 'autoloaded' ] ) {
+                throw new NotAllowedException( sprintf( __( 'The module "%s" is autoloaded and can\'t be deleted.' ), $module[ 'name' ] ) );
+            }
+
             /**
              * Disable the module first
              */
@@ -1057,13 +1091,13 @@ class ModulesService
             }
 
             return [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => sprintf( __( 'The migration file doens\'t have a valid class name. Expected class : %s' ), $className ),
             ];
         }
 
         return [
-            'status' => 'failed',
+            'status' => 'error',
             'message' => sprintf( __( 'Unable to locate the following file : %s' ), $filePath ),
         ];
     }
@@ -1099,7 +1133,7 @@ class ModulesService
          */
         if ( ! method_exists( $object, $method ) ) {
             return [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => sprintf( __( 'The migration file doens\'t have a valid method name. Expected method : %s' ), $method ),
             ];
         }
@@ -1124,6 +1158,14 @@ class ModulesService
         $this->checkManagementStatus();
 
         if ( $module = $this->get( $namespace ) ) {
+            if ( $module[ 'autoloaded' ] ) {
+                return response()->json([
+                    'status' => 'error',
+                    'code' => 'autoloaded_module',
+                    'message' => sprintf( __( 'The module "%s" is autoloaded and cannot be enabled.' ), $module[ 'name' ] )
+                ], 403 );
+            }
+
             /**
              * get all the modules that are
              * enabled.
@@ -1165,17 +1207,17 @@ class ModulesService
              */
             try {
                 $code = file_get_contents( $module[ 'index-file' ] );
-                $parser = ( new ParserFactory )->create( ParserFactory::PREFER_PHP7 );
+                $parser = ( new ParserFactory )->createForHostVersion();
                 $parser->parse( $code );
 
                 foreach ( $module[ 'providers' ] as $provider ) {
                     $code = file_get_contents( base_path( 'modules' ) . DIRECTORY_SEPARATOR . $provider );
-                    $parser = ( new ParserFactory )->create( ParserFactory::PREFER_PHP7 );
+                    $parser = ( new ParserFactory )->createForHostVersion();
                     $parser->parse( $code );
                 }
             } catch ( Error $error ) {
                 return response()->json( [
-                    'status' => 'failed',
+                    'status' => 'error',
                     'message' => sprintf(
                         __( 'An Error Occurred "%s": %s' ),
                         $module[ 'name' ],
@@ -1194,7 +1236,7 @@ class ModulesService
                 $this->triggerServiceProviders( $module, 'boot', ServiceProvider::class );
             } catch ( GlobalError $error ) {
                 return response()->json( [
-                    'status' => 'failed',
+                    'status' => 'error',
                     'message' => sprintf(
                         __( 'An Error Occurred "%s": %s' ),
                         $module[ 'name' ],
@@ -1250,6 +1292,10 @@ class ModulesService
 
         // check if module exists
         if ( $module = $this->get( $namespace ) ) {
+            if ( $module[ 'autoloaded' ] ) {
+                throw new NotAllowedException( sprintf( __( 'The module "%s" is autoloaded and cannot be disabled.' ), $module[ 'name' ] ) );
+            }
+
             ModulesBeforeDisabledEvent::dispatch( $module );
 
             // @todo sandbox to test if the module runs

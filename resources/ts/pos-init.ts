@@ -24,6 +24,7 @@ import { nsCurrency } from "./filters/currency";
 import Print from "./libraries/print";
 import Tax from "./libraries/tax";
 import * as math from "mathjs"
+import nsPosLoadingPopupVue from "./popups/ns-pos-loading-popup.vue";
 
 
 /**
@@ -76,6 +77,7 @@ export class POS {
     private _isSubmitting = false;
     private _processingAddQueue = false;
     private _selectedPaymentType: BehaviorSubject<PaymentType>;
+    private _userPermissions: BehaviorSubject<{[key:string]: any}[]>;
     
     public print: Print;
 
@@ -226,6 +228,7 @@ export class POS {
     }
 
     public initialize() {
+        this._userPermissions = new BehaviorSubject<{ [key: string]: any }[]>([]);
         this._products = new BehaviorSubject<OrderProduct[]>([]);
         this._customers = new BehaviorSubject<Customer[]>([]);
         this._types = new BehaviorSubject<OrderType[]>([]);
@@ -252,7 +255,19 @@ export class POS {
                     });
                 })
             }
-        ]
+        ];
+
+        this.initialQueue.push(() => new Promise((resolve, reject) => {
+            nsHttpClient.get(`/api/users/permissions/` ).subscribe({
+                next: (response: any) => {
+                    this._userPermissions.next(response);
+                    resolve( response );
+                },
+                error: error => {
+                    reject( error );
+                }
+            })
+        }));
 
         /**
          * This initial process will try to detect
@@ -624,7 +639,7 @@ export class POS {
                     })
             } else {
                 return reject({
-                    status: 'failed',
+                    status: 'error',
                     message: __('No tax group assigned to the order')
                 })
             }
@@ -754,7 +769,7 @@ export class POS {
                 if (result.order.instalments.length === 0 && result.order.tendered < expected) {
                     const message = __(`Before saving this order, a minimum payment of {amount} is required`).replace('{amount}', nsCurrency(expected));
                     Popup.show(nsAlertPopup, { title: __('Unable to proceed'), message });
-                    return reject({ status: 'failed', message });
+                    return reject({ status: 'error', message });
                 } else {
                     const paymentType = this.selectedPaymentType.getValue();
                     const expectedSlice = result.order.instalments.filter(payment => payment.amount >= expected && moment( payment.date ).isSame( ns.date.moment.startOf( 'day' ), 'day' ) );
@@ -796,7 +811,7 @@ export class POS {
         
                                     resolve({ status: 'success', message: __('Layaway defined'), data: { order: result.order } });
                                 } else {
-                                    reject({ status: 'failed', message: __( 'The request was canceled' ) })
+                                    reject({ status: 'error', message: __( 'The request was canceled' ) })
                                 }
                             }
                         });
@@ -836,7 +851,7 @@ export class POS {
                 if (order.payments.length === 0 && order.total > 0 && order.total > order.tendered) {
                     if (this.options.getValue().ns_orders_allow_partial === 'no') {
                         const message = __('Partially paid orders are disabled.');
-                        return reject({ status: 'failed', message });
+                        return reject({ status: 'error', message });
                     } else if (minimalPayment >= 0) {
                         try {
                             const result = await this.canProceedAsLaidAway(order);
@@ -896,7 +911,7 @@ export class POS {
                     });
             }
 
-            return reject({ status: 'failed', message: __('An order is currently being processed.') });
+            return reject({ status: 'error', message: __('An order is currently being processed.') });
         });
     }
 
@@ -1585,8 +1600,49 @@ export class POS {
         nsHooks.doAction( 'ns-after-cart-changed' );
     }
 
-    removeProductUsingIndex(index) {
+    userCan( permission ) {
+        const permissions   =   this._userPermissions.getValue();
+        const filtered  =   permissions.filter( (p) => p.namespace === permission );
+        return filtered.length > 0;
+    }
+
+    async removeProductUsingIndex(index) {
         const products = this._products.getValue();
+        const product   =   products[index];
+
+        /**
+         * if the product is persistent,
+         * we should check on the database if the user is allowed
+         * to delete those products.
+         */
+        if ( product.id ) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const popup = Popup.show( nsPosLoadingPopupVue );
+                    nsHttpClient.post(`/api/users/check-permission/`, {
+                        permission: 'nexopos.pos.delete-order-product'
+                    }).subscribe({
+                        next: (response: any) => {
+                            popup.close();
+                            resolve( response );
+                        },
+                        error: error => {
+                            popup.close();
+                            reject( error );
+                        }
+                    })
+                });
+
+                this.resumeRemovingProductUsingIndex( index, products );
+            } catch( exception ) {
+                nsNotice.error( __( 'Forbidden Action' ), __( 'You are not allowed to remove this product.' ) );
+            }
+        } else {
+            this.resumeRemovingProductUsingIndex( index, products );
+        }
+    }
+
+    private resumeRemovingProductUsingIndex( index, products ) {
         products.splice(index, 1);
         this.products.next(products);
         nsHooks.doAction( 'ns-after-cart-changed' );

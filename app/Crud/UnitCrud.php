@@ -14,6 +14,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class UnitCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.units';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_units';
@@ -75,8 +85,6 @@ class UnitCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -321,27 +329,27 @@ class UnitCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->base_unit = (bool) $entry->base_unit ? __( 'Yes' ) : __( 'No' );
         // you can make changes here
-        $entry->addAction( 'edit', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/' . 'units' . '/edit/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'edit',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'units' . '/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/crud/ns.units/' . $entry->id ),
-            'confirm' => [
+        // Snippet 2
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/ns.units/' . $entry->id ),
+            confirm: [
                 'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ] );
+            ]
+        );
 
         return $entry;
     }
@@ -361,7 +369,7 @@ class UnitCrud extends CrudService
         $user = app()->make( UsersService::class );
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
             return response()->json( [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => __( 'You\'re not allowed to do this operation' ),
             ], 403 );
         }
@@ -369,7 +377,7 @@ class UnitCrud extends CrudService
         if ( $request->input( 'action' ) == 'delete_selected' ) {
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -378,7 +386,7 @@ class UnitCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

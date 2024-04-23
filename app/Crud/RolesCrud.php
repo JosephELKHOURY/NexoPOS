@@ -16,6 +16,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class RolesCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.roles';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_roles';
@@ -86,15 +96,6 @@ class RolesCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
-
-        $this->dashboardOptions = Hook::filter( 'ns-dashboard-identifiers', [
-            'none' => __( 'No Dashboard' ),
-            'store' => __( 'Store Dashboard' ),
-            'cashier' => __( 'Cashier Dashboard' ),
-            'default' => __( 'Default Dashboard' ),
-        ] );
     }
 
     /**
@@ -304,6 +305,8 @@ class RolesCrud extends CrudService
             if ( $model->locked ) {
                 throw new Exception( __( 'Unable to delete a system role.' ) );
             }
+
+            $model->permissions()->detach();
         }
     }
 
@@ -334,39 +337,39 @@ class RolesCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->locked = (bool) $entry->locked;
 
         // you can make changes here
-        $entry->addAction( 'edit', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/' . 'users/roles' . '/edit/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'edit',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'users/roles' . '/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'clone', [
-            'label' => __( 'Clone' ),
-            'namespace' => 'clone',
-            'type' => 'GET',
-            'confirm' => [
+        // Snippet 2
+        $entry->action(
+            identifier: 'clone',
+            label: __( 'Clone' ),
+            type: 'GET',
+            confirm: [
                 'message' => __( 'Would you like to clone this role ?' ),
             ],
-            'index' => 'id',
-            'url' => ns()->url( '/api/' . 'users/roles/' . $entry->id . '/clone' ),
-        ] );
+            url: ns()->url( '/api/' . 'users/roles/' . $entry->id . '/clone' )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/crud/ns.roles/' . $entry->id ),
-            'confirm' => [
+        // Snippet 3
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/ns.roles/' . $entry->id ),
+            confirm: [
                 'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ] );
+            ]
+        );
 
         return $entry;
     }
@@ -386,7 +389,7 @@ class RolesCrud extends CrudService
         $user = app()->make( UsersService::class );
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
             return response()->json( [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => __( 'You\'re not allowed to do this operation' ),
             ], 403 );
         }
@@ -399,7 +402,7 @@ class RolesCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -410,13 +413,13 @@ class RolesCrud extends CrudService
                  */
                 if ( $entity instanceof Role ) {
                     if ( $entity->locked ) {
-                        $status[ 'failed' ]++;
+                        $status[ 'error' ]++;
                     } else {
                         $entity->delete();
                         $status[ 'success' ]++;
                     }
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

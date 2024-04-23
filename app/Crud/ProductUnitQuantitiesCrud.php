@@ -5,6 +5,7 @@ namespace App\Crud;
 use App\Exceptions\NotAllowedException;
 use App\Models\ProductUnitQuantity;
 use App\Models\User;
+use App\Services\CrudEntry;
 use App\Services\CrudService;
 use Illuminate\Http\Request;
 use TorMorten\Eventy\Facades\Events as Hook;
@@ -12,14 +13,19 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class ProductUnitQuantitiesCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.products-units';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_products_unit_quantities';
-
-    /**
-     * default identifier
-     */
-    const IDENTIFIER = 'products/units';
 
     /**
      * Define namespace
@@ -84,13 +90,21 @@ class ProductUnitQuantitiesCrud extends CrudService
     public $fillable = [];
 
     /**
+     * showing the options here is pointless.
+     */
+    protected $showOptions = false;
+
+    /**
+     * Bulk options are uselss here.
+     */
+    protected $showCheckboxes = false;
+
+    /**
      * Define Constructor
      */
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -344,7 +358,7 @@ class ProductUnitQuantitiesCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         return $entry;
     }
@@ -373,7 +387,7 @@ class ProductUnitQuantitiesCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -382,7 +396,7 @@ class ProductUnitQuantitiesCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

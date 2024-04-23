@@ -1,6 +1,6 @@
 import * as baseComponents  from './components/components';
 
-import { createApp, markRaw, shallowRef } from 'vue';
+import { createApp, shallowRef } from 'vue';
 
 import nsAlertPopup from '~/popups/ns-alert-popup.vue';
 import nsConfirmPopup from '~/popups/ns-pos-confirm-popup.vue';
@@ -50,6 +50,7 @@ const nsPopups      =   createApp({
     },
     methods: {
         closePopup( popup, event ) {
+            console.log({ popup, event });
             /**
              * This means we've strictly clicked on the container
              */
@@ -59,8 +60,13 @@ const nsPopups      =   createApp({
                     [ undefined, true ].includes( popup.config.closeOnOverlayClick )
                 )
             ) {
-                event.stopPropagation();
-                popup.close();
+                if ( popup.params && popup.params.reject ) {
+                    popup.params.reject( false );
+                    event.stopPropagation();
+                } else {
+                    console.log( 'here' );
+                    popup.close();
+                }
             }
         },
         preventPropagation( event ) {

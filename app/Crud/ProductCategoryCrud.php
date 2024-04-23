@@ -17,6 +17,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class ProductCategoryCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.products-categories';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_products_categories';
@@ -85,8 +95,6 @@ class ProductCategoryCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -338,7 +346,7 @@ class ProductCategoryCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->parent_name = $entry->parent_name === null ? __( 'No Parent' ) : $entry->parent_name;
         $entry->displays_on_pos = (int) $entry->displays_on_pos === 1 ? __( 'Yes' ) : __( 'No' );
@@ -386,7 +394,7 @@ class ProductCategoryCrud extends CrudService
 
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
             return response()->json( [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => __( 'You\'re not allowed to do this operation' ),
             ], 403 );
         }
@@ -394,7 +402,7 @@ class ProductCategoryCrud extends CrudService
         if ( $request->input( 'action' ) == 'delete_selected' ) {
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -403,7 +411,7 @@ class ProductCategoryCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

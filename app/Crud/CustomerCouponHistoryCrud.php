@@ -11,8 +11,14 @@ use TorMorten\Eventy\Facades\Events as Hook;
 
 class CustomerCouponHistoryCrud extends CrudService
 {
+    /**
+     * Define the autoload status
+     */
     const AUTOLOAD = true;
 
+    /**
+     * Define the identifier
+     */
     const IDENTIFIER = 'ns.customers-coupons-history';
 
     /**
@@ -141,8 +147,6 @@ class CustomerCouponHistoryCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'addActions' ], 10, 2 );
     }
 
     /**
@@ -321,7 +325,7 @@ class CustomerCouponHistoryCrud extends CrudService
     /**
      * Define row actions.
      */
-    public function addActions( CrudEntry $entry, $namespace ): CrudEntry
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->value = (string) ns()->currency->define( $entry->value );
 
@@ -369,7 +373,7 @@ class CustomerCouponHistoryCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -378,7 +382,7 @@ class CustomerCouponHistoryCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

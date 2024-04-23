@@ -14,6 +14,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class RegisterCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.cash-registers';
+
+    /**
      * define the base table
      *
      * @param  string
@@ -32,7 +42,7 @@ class RegisterCrud extends CrudService
      *
      * @param  string
      */
-    protected $namespace = 'ns.registers';
+    protected $namespace = 'ns.cash-registers';
 
     /**
      * Model Used
@@ -112,8 +122,6 @@ class RegisterCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -292,7 +300,7 @@ class RegisterCrud extends CrudService
      */
     public function beforeDelete( $namespace, $id, $model )
     {
-        if ( $namespace == 'ns.registers' ) {
+        if ( $namespace == self::IDENTIFIER ) {
             /**
              *  Perform an action before deleting an entry
              *  In case something wrong, this response can be returned
@@ -356,35 +364,35 @@ class RegisterCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->cashier_username = $entry->cashier_username ?: __( 'N/A' );
         $entry->balance = (string) ns()->currency->define( $entry->balance );
 
         // you can make changes here
-        $entry->addAction( 'edit', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'url' => ns()->url( '/dashboard/' . 'cash-registers' . '/edit/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'edit',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'cash-registers' . '/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'register-history', [
-            'label' => __( 'Register History' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'url' => ns()->url( '/dashboard/' . 'cash-registers' . '/history/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'register-history', // Prioritize 'identifier'
+            label: __( 'Register History' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'cash-registers' . '/history/' . $entry->id )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/crud/ns.registers/' . $entry->id ),
-            'confirm' => [
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/' . self::IDENTIFIER . '/' . $entry->id ),
+            confirm: [
                 'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ] );
+            ]
+        );
 
         return $entry;
     }
@@ -413,7 +421,7 @@ class RegisterCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -422,7 +430,7 @@ class RegisterCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 
@@ -443,8 +451,8 @@ class RegisterCrud extends CrudService
             'list' => ns()->url( 'dashboard/' . 'cash-registers' ),
             'create' => ns()->url( 'dashboard/' . 'cash-registers/create' ),
             'edit' => ns()->url( 'dashboard/' . 'cash-registers/edit/' ),
-            'post' => ns()->url( 'api/crud/' . 'ns.registers' ),
-            'put' => ns()->url( 'api/crud/' . 'ns.registers/{id}' . '' ),
+            'post' => ns()->url( 'api/crud/' . self::IDENTIFIER ),
+            'put' => ns()->url( 'api/crud/' . self::IDENTIFIER . '/{id}' . '' ),
         ];
     }
 

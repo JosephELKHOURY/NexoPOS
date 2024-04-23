@@ -12,6 +12,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class ProviderCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.providers';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_providers';
@@ -77,8 +87,6 @@ class ProviderCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -319,7 +327,7 @@ class ProviderCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->phone = $entry->phone ?? __( 'N/A' );
         $entry->email = $entry->email ?? __( 'N/A' );
@@ -327,39 +335,40 @@ class ProviderCrud extends CrudService
         $entry->amount_due = ns()->currency->define( $entry->amount_due )->format();
         $entry->amount_paid = ns()->currency->define( $entry->amount_paid )->format();
 
-        $entry->addAction( 'edit', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/' . 'providers' . '/edit/' . $entry->id ),
-        ] );
+        // Snippet 1
+        $entry->action(
+            identifier: 'edit',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'providers' . '/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'see-procurements', [
-            'label' => __( 'See Procurements' ),
-            'namespace' => 'see-procurements',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/' . 'providers/' . $entry->id . '/procurements/' ),
-        ] );
+        // Snippet 2
+        $entry->action(
+            identifier: 'see-procurements',
+            label: __( 'See Procurements' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'providers/' . $entry->id . '/procurements/' )
+        );
 
-        $entry->addAction( 'see-products', [
-            'label' => __( 'See Products' ),
-            'namespace' => 'see-products',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/' . 'providers/' . $entry->id . '/products/' ),
-        ] );
+        // Snippet 3
+        $entry->action(
+            identifier: 'see-products',
+            label: __( 'See Products' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/' . 'providers/' . $entry->id . '/products/' )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'url' => ns()->url( '/api/crud/ns.providers/' . $entry->id ),
-            'confirm' => [
+        // Snippet 4
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/ns.providers/' . $entry->id ),
+            confirm: [
                 'message' => __( 'Would you like to delete this ?' ),
-            ],
-        ] );
+            ]
+        );
 
         return $entry;
     }
@@ -379,7 +388,7 @@ class ProviderCrud extends CrudService
         $user = app()->make( UsersService::class );
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
             return response()->json( [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => __( 'You\'re not allowed to do this operation' ),
             ], 403 );
         }
@@ -387,7 +396,7 @@ class ProviderCrud extends CrudService
         if ( $request->input( 'action' ) == 'delete_selected' ) {
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -396,7 +405,7 @@ class ProviderCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

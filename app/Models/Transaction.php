@@ -31,6 +31,7 @@ class Transaction extends NsModel
 
     protected $casts = [
         'recurring' => 'boolean',
+        'occurrence_value' => 'integer',
         'active' => 'boolean',
     ];
 
@@ -66,6 +67,11 @@ class Transaction extends NsModel
     public function account()
     {
         return $this->belongsTo( TransactionAccount::class, 'account_id' );
+    }
+
+    public function histories()
+    {
+        return $this->hasMany( TransactionHistory::class, 'transaction_id' );
     }
 
     public function scopeScheduled( $query )

@@ -6,6 +6,8 @@ use App\Casts\CurrencyCast;
 use App\Casts\GenderCast;
 use App\Casts\NotDefinedCast;
 use App\Casts\YesNoBoolCast;
+use App\Classes\CrudTable;
+use App\Classes\JsonResponse;
 use App\Events\UserAfterActivationSuccessfulEvent;
 use App\Exceptions\NotAllowedException;
 use App\Models\CustomerBillingAddress;
@@ -28,6 +30,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 
 class UserCrud extends CrudService
 {
+    /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.users';
+
     /**
      * define the base table
      */
@@ -137,8 +149,6 @@ class UserCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
 
         $this->userService = app()->make( UsersService::class );
         $this->options = app()->make( Options::class );
@@ -608,59 +618,49 @@ class UserCrud extends CrudService
      */
     public function getColumns(): array
     {
-        return [
-            'username' => [
-                'label' => __( 'Username' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'active' => [
-                'label' => __( 'Active' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'group_name' => [
-                'label' => __( 'Group Name' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'account_amount' => [
-                'label' => __( 'Wallet Balance' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'owed_amount' => [
-                'label' => __( 'Owed Amount' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'purchases_amount' => [
-                'label' => __( 'Total Purchases' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'email' => [
-                'label' => __( 'Email' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-            'rolesNames' => [
-                'label' => __( 'Roles' ),
-                '$direction' => '',
-                '$sort' => false,
-            ],
-            'created_at' => [
-                'label' => __( 'Created At' ),
-                '$direction' => '',
-                '$sort' => true,
-            ],
-        ];
+        return CrudTable::columns(
+            CrudTable::column(
+                identifier: 'username',
+                label: __( 'Username' ),
+                attributes: CrudTable::attributes(
+                    CrudTable::attribute(
+                        column: 'active',
+                        label: __( 'Active' )
+                    ),
+                    CrudTable::attribute(
+                        column: 'email',
+                        label: __( 'Email' )
+                    )
+                )
+            ),
+            CrudTable::column(
+                label: __( 'Wallet' ),
+                identifier: 'account_amount',
+            ),
+            CrudTable::column(
+                label: __( 'Owed' ),
+                identifier: 'owed_amount'
+            ),
+            CrudTable::column(
+                label: __( 'Purchases' ),
+                identifier: 'purchases_amount'
+            ),
+            CrudTable::column(
+                label: __( 'Roles' ),
+                identifier: 'rolesNames',
+                sort: false
+            ),
+            CrudTable::column(
+                label: __( 'Created At' ),
+                identifier: 'created_at'
+            )
+        );
     }
 
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->action(
             identifier: 'edit_customers_group',
@@ -723,16 +723,15 @@ class UserCrud extends CrudService
          */
         $user = app()->make( UsersService::class );
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
-            return response()->json( [
-                'status' => 'failed',
-                'message' => __( 'You\'re not allowed to do this operation' ),
-            ], 403 );
+            return JsonResponse::error(
+                message: __( 'You\'re not allowed to do this operation' )
+            );
         }
 
         if ( $request->input( 'action' ) == 'delete_selected' ) {
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             /**
@@ -748,7 +747,7 @@ class UserCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

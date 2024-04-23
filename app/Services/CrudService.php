@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Casts\DateCast;
 use App\Classes\Output;
+use App\Events\CrudHookEvent;
 use App\Exceptions\NotAllowedException;
 use App\Traits\NsForms;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Contracts\View\View as ContractView;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -152,6 +152,8 @@ class CrudService
         'updated_at' => DateCast::class,
     ];
 
+    protected $model;
+
     /**
      * Define permissions for using
      * the current resource
@@ -176,7 +178,7 @@ class CrudService
      * Store relations that should be joined to every
      * request made to the database using the model provided
      */
-    protected $relations;
+    protected $relations    =   [];
 
     /**
      * Keeps the table name for the provided model
@@ -187,6 +189,15 @@ class CrudService
      * Define the main route identifier.
      */
     protected $mainRoute;
+
+    /**
+     * Define the attributes to use while using
+     * the crud component on a search-select field.
+     */
+    protected $optionAttributes = [
+        'label' => 'name',
+        'value' => 'id',
+    ];
 
     /**
      * Construct Parent
@@ -892,6 +903,12 @@ class CrudService
         }
 
         /**
+         * This will allow any module to interact with
+         * the way the query is built.
+         */
+        CrudHookEvent::dispatch( $this, $query );
+
+        /**
          * if $perPage is not defined
          * probably we're trying to return all the entries.
          */
@@ -941,13 +958,19 @@ class CrudService
              * We'll allow any resource to mutate the
              * entries but make sure to keep the originals.
              */
-            $entry = Hook::filter( $this->namespace . '-crud-actions', $entry );
-            $entry = Hook::filter( get_class( $this )::method( 'setActions' ), $entry );
+            if ( method_exists( $this, 'setActions' ) ) {
+                Hook::action( get_class( $this )::method( 'setActions' ), $this->setActions( $entry ) );
+            }
 
             return $entry;
         } );
 
         return $entries;
+    }
+
+    protected function setActions( CrudEntry $entry ): CrudEntry
+    {
+        return $entry;
     }
 
     protected function hookTableName( $tableName ): string
@@ -1238,11 +1261,22 @@ class CrudService
             'namespace' => $instance->getNamespace(),
 
             /**
+             * We'll return here the select attribute that will
+             * be used to automatically popuplate "options" entry of select and search-select field
+             */
+            'optionAttributes' => $instance->getOptionAttributes(),
+
+            /**
              * to provide custom query params
              * to every outgoing request on the table
              */
             'queryParams' => [],
         ], $config );
+    }
+
+    public function getOptionAttributes()
+    {
+        return $this->optionAttributes;
     }
 
     /**

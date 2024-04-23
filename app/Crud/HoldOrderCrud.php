@@ -11,6 +11,8 @@ use TorMorten\Eventy\Facades\Events as Hook;
 
 class HoldOrderCrud extends CrudService
 {
+    const AUTOLOAD = true;
+
     /**
      * define the base table
      *
@@ -110,8 +112,6 @@ class HoldOrderCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
 
         $this->bulkActions = [];
     }
@@ -459,7 +459,7 @@ class HoldOrderCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->action(
             label: __( 'Continue' ),
@@ -494,7 +494,7 @@ class HoldOrderCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -503,7 +503,7 @@ class HoldOrderCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

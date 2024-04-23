@@ -14,6 +14,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class GlobalProductHistoryCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.global-products-history';
+
+    /**
      * define the base table
      *
      * @param  string
@@ -53,9 +63,9 @@ class GlobalProductHistoryCrud extends CrudService
         'delete' => false,
     ];
 
-    protected $showOptions  =   false;
-    
-    protected $showCheckboxes  =   false;
+    protected $showOptions = false;
+
+    protected $showCheckboxes = false;
 
     public $casts = [
         'operation_type' => ProductHistoryActionCast::class,
@@ -138,8 +148,6 @@ class GlobalProductHistoryCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -373,7 +381,7 @@ class GlobalProductHistoryCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->procurement_name = $entry->procurement_name ?: __( 'N/A' );
         $entry->order_code = $entry->order_code ?: __( 'N/A' );
@@ -421,7 +429,7 @@ class GlobalProductHistoryCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -430,7 +438,7 @@ class GlobalProductHistoryCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

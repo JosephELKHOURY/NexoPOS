@@ -19,6 +19,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class ProductCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.products';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_products';
@@ -112,8 +122,6 @@ class ProductCrud extends CrudService
     {
         parent::__construct();
 
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
-
         $this->taxService = app()->make( TaxService::class );
     }
 
@@ -186,7 +194,7 @@ class ProductCrud extends CrudService
                 'errors' => [],
                 'name' => 'convert_unit_id',
                 'label' => __( 'Convert Unit' ),
-                'validation' => 'different:unit_id',
+                'validation' => 'different:variations.*.units.selling_group.*.unit_id',
                 'options' => Helper::toJsOptions( $units, [ 'id', 'name' ] ),
                 'value' => '',
                 'description' => __( 'The unit that is selected for convertion by default.' ),
@@ -266,13 +274,6 @@ class ProductCrud extends CrudService
                             'label' => __( 'Identification' ),
                             'fields' => [
                                 [
-                                    'type' => 'text',
-                                    'name' => 'name',
-                                    'description' => __( 'Product unique name. If it\' variation, it should be relevant for that variation' ),
-                                    'label' => __( 'Name' ),
-                                    'validation' => 'required',
-                                    'value' => $entry->name ?? '',
-                                ], [
                                     'type' => 'search-select',
                                     'component' => 'nsCrudForm',
                                     'props' => ProductCategoryCrud::getFormConfig(),
@@ -389,12 +390,14 @@ class ProductCrud extends CrudService
                             'label' => __( 'Units' ),
                             'fields' => [
                                 [
-                                    'type' => 'select',
+                                    'type' => 'search-select',
                                     'options' => Helper::toJsOptions( $groups, [ 'id', 'name' ] ),
                                     'name' => 'unit_group',
                                     'description' => __( 'What unit group applies to the actual item. This group will apply during the procurement.' ),
                                     'label' => __( 'Unit Group' ),
                                     'validation' => 'required',
+                                    'props' =>  UnitGroupCrud::getFormConfig(),
+                                    'component' => 'nsCrudForm',
                                     'value' => $entry->unit_group ?? ( ! $groups->isEmpty() ? $groups->first()->id : '' ),
                                 ], [
                                     'type' => 'switch',
@@ -719,7 +722,7 @@ class ProductCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $class = match ( $entry->type ) {
             'grouped' => 'text-success-tertiary',
@@ -799,17 +802,16 @@ class ProductCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
                 $entity = $this->model::find( $id );
                 if ( $entity instanceof Product ) {
-                    $this->deleteProductAttachedRelation( $entity );
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 
@@ -862,7 +864,7 @@ class ProductCrud extends CrudService
         return [];
     }
 
-    public function getExtractedProductForm( $product )
+    public function getExtractedProductForm( $product = null )
     {
         $rawForm = $this->getForm( $product );
 
@@ -875,7 +877,7 @@ class ProductCrud extends CrudService
                         $data[ '$primary' ] = true;
                     }
 
-                    $data[ 'images' ] = $variation[ 'tabs' ][ 'images' ][ 'groups' ]->map( function ( $fields ) {
+                    $data[ 'images' ] = collect( $variation[ 'tabs' ][ 'images' ][ 'groups' ] )->map( function ( $fields ) {
                         return $this->extractFields( $fields );
                     } )->toArray();
 

@@ -15,6 +15,16 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class RewardSystemCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.rewards-system';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_rewards_system';
@@ -85,8 +95,6 @@ class RewardSystemCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -378,30 +386,28 @@ class RewardSystemCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->name = $entry->name . ' (' . RewardSystem::find( $entry->id )->rules()->count() . ')';
 
         // you can make changes here
-        $entry->addAction( 'edit.rewards', [
-            'label' => __( 'Edit' ),
-            'namespace' => 'edit.licence',
-            'type' => 'GOTO',
-            'index' => 'id',
-            'url' => ns()->url( '/dashboard/customers/rewards-system/edit/' . $entry->id ),
-        ] );
+        $entry->action(
+            identifier: 'edit.rewards',
+            label: __( 'Edit' ),
+            type: 'GOTO',
+            url: ns()->url( '/dashboard/customers/rewards-system/edit/' . $entry->id )
+        );
 
-        $entry->addAction( 'delete', [
-            'label' => __( 'Delete' ),
-            'namespace' => 'delete',
-            'type' => 'DELETE',
-            'index' => 'id',
-            'url' => ns()->url( '/api/crud/ns.rewards-system/' . $entry->id ),
-            'confirm' => [
+        $entry->action(
+            identifier: 'delete',
+            label: __( 'Delete' ),
+            type: 'DELETE',
+            url: ns()->url( '/api/crud/ns.rewards-system/' . $entry->id ),
+            confirm: [
                 'message' => __( 'Would you like to delete this reward system ?' ),
                 'title' => __( 'Delete a licence' ),
-            ],
-        ] );
+            ]
+        );
 
         return $entry;
     }
@@ -422,7 +428,7 @@ class RewardSystemCrud extends CrudService
 
         if ( ! $user->is( [ 'admin', 'supervisor' ] ) ) {
             return response()->json( [
-                'status' => 'failed',
+                'status' => 'error',
                 'message' => __( 'You\'re not allowed to do this operation' ),
             ], 403 );
         }
@@ -430,7 +436,7 @@ class RewardSystemCrud extends CrudService
         if ( $request->input( 'action' ) == 'delete_selected' ) {
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -439,7 +445,7 @@ class RewardSystemCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 

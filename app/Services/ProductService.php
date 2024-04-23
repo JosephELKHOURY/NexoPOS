@@ -287,8 +287,8 @@ class ProductService
 
         event( new ProductBeforeCreatedEvent( $product ) );
 
-        foreach ($data as $field => $value) {
-            if (! in_array($field, [ 'variations' ])) {
+        foreach ( $data as $field => $value ) {
+            if ( ! in_array( $field, [ 'variations' ] ) ) {
                 $fields = $data;
                 $this->__fillProductFields( $product, compact( 'field', 'value', 'mode', 'fields' ) );
             }
@@ -439,7 +439,7 @@ class ProductService
 
         event( new ProductBeforeUpdatedEvent( $product ) );
 
-        $this->releaseProductTaxes($product);
+        $this->releaseProductTaxes( $product );
 
         if ( empty( $fields[ 'barcode' ] ) ) {
             $fields[ 'barcode' ] = $this->barcodeService->generateRandomBarcode( $fields[ 'barcode_type' ] );
@@ -676,7 +676,7 @@ class ProductService
         }
 
         $parent->save();
-        
+
         event( new ProductAfterUpdatedEvent( $parent ) );
 
         return [
@@ -766,37 +766,52 @@ class ProductService
      */
     public function computeCogsIfNecessary( ProductHistory $productHistory ): void
     {
-        $productHistory->load( 'product' );
+        $productHistory->load( 'product', 'unit' );
 
         /**
          * if the value is explicitely defined
          * then we'll skip the automatic detection
          */
         if ( $productHistory->product instanceof Product && $productHistory->product->auto_cogs ) {
-            $productHistories = ProductHistory::where( 'unit_id', $productHistory->unit_id )->where( 'product_id', $productHistory->product_id )
-                ->whereIn( 'operation_type', [
-                    ProductHistory::ACTION_CONVERT_IN,
-                    ProductHistory::ACTION_STOCKED,
-                    // we might need to consider futher conversion option.
-                ] )
-                ->get();
+            $this->computeCogs( $productHistory->product, $productHistory->unit );
+        }
+    }
 
-            $totalQuantities = $productHistories->map( fn( $productHistory ) => $productHistory->quantity )->sum();
-            $sums = $productHistories->map( fn( $productHistory ) => $productHistory->total_price )->sum();
+    /**
+     * Compute cogs for the provided product and unit.
+     */
+    public function computeCogs( ?Product $product = null, ?Unit $unit = null, ?ProductUnitQuantity $productUnitQuantity = null ): ?ProductUnitQuantity
+    {
+        $unit_id = $productUnitQuantity->unit_id ?? $unit->id;
+        $product_id = $productUnitQuantity->product_id ?? $product->id;
 
-            if ( $sums > 0 && $totalQuantities > 0 ) {
-                $cogs = ns()->currency->define( $sums )->divideBy( $totalQuantities )->toFloat();
+        $productHistories = ProductHistory::where( 'unit_id', $unit_id )->where( 'product_id', $product_id )
+            ->whereIn( 'operation_type', [
+                ProductHistory::ACTION_CONVERT_IN,
+                ProductHistory::ACTION_STOCKED,
+                // we might need to consider futher conversion option.
+            ] )
+            ->get();
 
-                $productUnitQuantity = ProductUnitQuantity::where( 'unit_id', $productHistory->unit_id )
-                    ->where( 'product_id', $productHistory->product_id )
-                    ->first();
+        $totalQuantities = $productHistories->map( fn( $productHistory ) => $productHistory->quantity )->sum();
+        $sums = $productHistories->map( fn( $productHistory ) => $productHistory->total_price )->sum();
 
-                if ( $productUnitQuantity instanceof ProductUnitQuantity ) {
-                    $productUnitQuantity->cogs = $cogs;
-                    $productUnitQuantity->save();
-                }
+        if ( $sums > 0 && $totalQuantities > 0 ) {
+            $cogs = ns()->currency->define( $sums )->divideBy( $totalQuantities )->toFloat();
+
+            $productUnitQuantity = $productUnitQuantity ?: ProductUnitQuantity::where( 'unit_id', $unit_id )
+                ->where( 'product_id', $product_id )
+                ->first();
+
+            if ( $productUnitQuantity instanceof ProductUnitQuantity ) {
+                $productUnitQuantity->cogs = $cogs;
+                $productUnitQuantity->save();
+
+                return $productUnitQuantity;
             }
         }
+
+        return null;
     }
 
     /**
@@ -1731,6 +1746,19 @@ class ProductService
         ];
     }
 
+    public function getCogs( Product $product, Unit $unit )
+    {
+        $productUnitQuantity = ProductUnitQuantity::where( 'product_id', $product->id )
+            ->where( 'unit_id', $unit->id )
+            ->first();
+
+        if ( ! $productUnitQuantity instanceof ProductUnitQuantity ) {
+            return 0;
+        }
+
+        return $productUnitQuantity->cogs;
+    }
+
     /**
      * Will return the last purchase price
      * defined for the provided product
@@ -1840,7 +1868,7 @@ class ProductService
 
         event( new ProductBeforeUpdatedEvent( $product ) );
 
-        foreach ($fields as $field => $value) {
+        foreach ( $fields as $field => $value ) {
             /**
              * we'll update the data
              * since the variation don't need to
@@ -1966,7 +1994,7 @@ class ProductService
             $unitQuantityTo->unit_id = $to->id;
             $unitQuantityTo->quantity = 0;
             $unitQuantityTo->visible = false;
-            $unitQuantityTo->save();            
+            $unitQuantityTo->save();
         }
 
         if ( ! $this->unitService->isFromSameGroup( $from, $to ) ) {

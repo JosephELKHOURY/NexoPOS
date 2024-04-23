@@ -155,9 +155,14 @@ class User extends Authenticatable
         }
 
         return [
-            'status' => 'failed',
+            'status' => 'error',
             'message' => __( 'Unable to identifier the provided role.' ),
         ];
+    }
+
+    public function scopeActive()
+    {
+        return $this->where( 'active', true );
     }
 
     /**

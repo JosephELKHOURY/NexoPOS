@@ -2,10 +2,8 @@
 
 namespace App\Models;
 
-use App\Events\ProcurementAfterCreateEvent;
 use App\Events\ProcurementAfterDeleteEvent;
 use App\Events\ProcurementAfterUpdateEvent;
-use App\Events\ProcurementBeforeCreateEvent;
 use App\Events\ProcurementBeforeDeleteEvent;
 use App\Events\ProcurementBeforeUpdateEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -80,8 +78,6 @@ class Procurement extends NsModel
     const PAYMENT_PAID = 'paid';
 
     protected $dispatchesEvents = [
-        'creating' => ProcurementBeforeCreateEvent::class,
-        'created' => ProcurementAfterCreateEvent::class,
         'deleting' => ProcurementBeforeDeleteEvent::class,
         'updating' => ProcurementBeforeUpdateEvent::class,
         'updated' => ProcurementAfterUpdateEvent::class,

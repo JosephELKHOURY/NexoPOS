@@ -14,14 +14,19 @@ use TorMorten\Eventy\Facades\Events as Hook;
 class ProductHistoryCrud extends CrudService
 {
     /**
+     * Define the autoload status
+     */
+    const AUTOLOAD = true;
+
+    /**
+     * Define the identifier
+     */
+    const IDENTIFIER = 'ns.products-histories';
+
+    /**
      * define the base table
      */
     protected $table = 'nexopos_products_histories';
-
-    /**
-     * default identifier
-     */
-    const IDENTIFIER = 'products/histories';
 
     /**
      * Define namespace
@@ -101,13 +106,16 @@ class ProductHistoryCrud extends CrudService
     public $fillable = [];
 
     /**
+     * Show checkboxes
+     */
+    protected $showCheckboxes = false;
+
+    /**
      * Define Constructor
      */
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'setActions' ], 10, 2 );
     }
 
     /**
@@ -439,7 +447,7 @@ class ProductHistoryCrud extends CrudService
     /**
      * Define actions
      */
-    public function setActions( CrudEntry $entry, $namespace )
+    public function setActions( CrudEntry $entry ): CrudEntry
     {
         $entry->orders_code = $entry->orders_code ?: __( 'N/A' );
         $entry->procurements_name = $entry->procurements_name ?: __( 'N/A' );
@@ -511,7 +519,7 @@ class ProductHistoryCrud extends CrudService
 
             $status = [
                 'success' => 0,
-                'failed' => 0,
+                'error' => 0,
             ];
 
             foreach ( $request->input( 'entries' ) as $id ) {
@@ -520,7 +528,7 @@ class ProductHistoryCrud extends CrudService
                     $entity->delete();
                     $status[ 'success' ]++;
                 } else {
-                    $status[ 'failed' ]++;
+                    $status[ 'error' ]++;
                 }
             }
 
