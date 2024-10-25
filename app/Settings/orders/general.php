@@ -4,6 +4,19 @@ use App\Classes\FormInput;
 use App\Classes\SettingForm;
 use App\Services\Helper;
 
+$options = collect( [ 3, 5, 10, 15, 30 ] )->mapWithKeys( function ( $days ) {
+    return [
+        $days => sprintf( __( '%s Days' ), $days ),
+    ];
+} )->toArray();
+
+$expirationOptions = Helper::kvToJsOptions( $options );
+
+array_unshift( $expirationOptions, [
+    'value' => 'never',
+    'label' => __( 'Never' ),
+] );
+
 return SettingForm::tabs(
     SettingForm::tab(
         label: __( 'General' ),
@@ -40,16 +53,22 @@ return SettingForm::tabs(
                     'no' => __( 'No' ),
                 ] ),
             ),
+            FormInput::switch(
+                label: __( 'Strict Instalments' ),
+                name: 'ns_orders_strict_instalments',
+                value: ns()->option->get( 'ns_orders_strict_instalments' ),
+                description: __( 'Will enforce instalment to be paid on specific date.' ),
+                options: Helper::kvToJsOptions( [
+                    'yes' => __( 'Yes' ),
+                    'no' => __( 'No' ),
+                ] ),
+            ),
             FormInput::select(
                 label: __( 'Quotation Expiration' ),
                 name: 'ns_orders_quotation_expiration',
                 value: ns()->option->get( 'ns_orders_quotation_expiration' ),
                 description: __( 'Quotations will get deleted after they defined they has reached.' ),
-                options: Helper::kvToJsOptions( collect( [ 3, 5, 10, 15, 30 ] )->mapWithKeys( function ( $days ) {
-                    return [
-                        $days => sprintf( __( '%s Days' ), $days ),
-                    ];
-                } ) ),
+                options: $expirationOptions,
             ),
         )
     )

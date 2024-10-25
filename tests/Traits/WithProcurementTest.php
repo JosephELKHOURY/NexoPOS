@@ -4,6 +4,7 @@ namespace Tests\Traits;
 
 use App\Classes\Currency;
 use App\Models\Procurement;
+use App\Models\ProcurementProduct;
 use App\Models\Product;
 use App\Models\ProductHistory;
 use App\Models\Provider;
@@ -27,7 +28,6 @@ trait WithProcurementTest
         $testService = app()->make( TestService::class );
 
         $provider = Provider::get()->random();
-        $currentExpenseValue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
         $procurementsDetails = $testService->prepareProcurement( ns()->date->now(), [
             'general.payment_status' => 'unpaid',
             'general.provider_id' => $provider->id,
@@ -38,35 +38,22 @@ trait WithProcurementTest
         $response = $this->withSession( $this->app[ 'session' ]->all() )
             ->json( 'POST', 'api/procurements', $procurementsDetails );
 
-        $decode = json_decode( $response->getContent(), true );
-
-        $newExpensevalue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
-        $procurement = $decode[ 'data' ][ 'procurement' ];
-
         /**
          * Step 1: there shouldn't be a change on the expenses
          */
-        $this->assertTrue( (float) $currentExpenseValue === (float) $newExpensevalue, 'The expenses has changed for an unpaid procurement.' );
-        $this->assertTrue( (float) $provider->amount_due !== (float) $provider->fresh()->amount_due, 'The due amount for the provider hasn\'t changed, while it should.' );
+        $this->assertTrue( (float) $provider->amount_due !== (float) $provider->fresh()->amount_due, 'The due amount for the provider hasn\'t changed, while it should.' );        
 
-        /**
-         * Step 2: update the procurement to paid
-         */
-        $currentTransactionValue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
+        return $response->json();
+    }
 
+    protected function attemptPayUnpaidProcurement( $procurement_id )
+    {
         $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'GET', 'api/procurements/' . $procurement[ 'id' ] . '/set-as-paid' );
+            ->json( 'GET', 'api/procurements/' . $procurement_id . '/set-as-paid' );
 
         $response->assertOk();
-        $decode = json_decode( $response->getContent(), true );
 
-        $newTransaction = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
-        $existingTransaction = TransactionHistory::where( 'procurement_id', $procurement[ 'id' ] )->first();
-
-        $this->assertEquals( 1, TransactionHistory::where( 'procurement_id', $procurement[ 'id' ] )->count(), 'There is more than 1 cash flow created for the same procurement.' );
-        $this->assertEquals( ns()->currency->getRaw( $existingTransaction->value ), ns()->currency->getRaw( $procurement[ 'cost' ] ), 'The cash flow value doesn\'t match the procurement cost.' );
-        $this->assertTrue( $existingTransaction instanceof TransactionHistory, 'No cash flow was created after the procurement was marked as paid.' );
-        $this->assertTrue( (float) $currentTransactionValue !== (float) $newTransaction, 'The transactions hasn\'t changed for the previously unpaid procurement.' );
+        return $response->json();
     }
 
     protected function attemptCreateProcurement()
@@ -76,7 +63,6 @@ trait WithProcurementTest
          */
         $testService = app()->make( TestService::class );
 
-        $currentExpenseValue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
         $procurementsDetails = $testService->prepareProcurement( ns()->date->now(), [
             'general.payment_status' => Procurement::PAYMENT_UNPAID,
             'general.delivery_status' => Procurement::PENDING,
@@ -114,47 +100,13 @@ trait WithProcurementTest
 
         $response->assertOk();
 
-        $procurementId = $response->json()[ 'data' ][ 'procurement' ][ 'id' ];
-
-        /**
-         * Check: at the point, there shouldn't be any expense recorded.
-         * The procurement is not paid.
-         */
-        $existingExpense = CashFlow::where( 'procurement_id', $procurementId )->first();
-        $this->assertTrue( ! $existingExpense instanceof CashFlow, __( 'A cash flow has been created for an unpaid procurement.' ) );
-
-        /**
-         * Query: we store the procurement now with a paid status
-         */
-        $procurementsDetails[ 'general' ][ 'payment_status' ] = Procurement::PAYMENT_PAID;
-        $procurementsDetails[ 'general' ][ 'delivery_status' ] = Procurement::DELIVERED;
-
-        $response = $this->withSession( $this->app[ 'session' ]->all() )
-            ->json( 'PUT', 'api/nexopos/v4/procurements/' . $procurementId, $procurementsDetails );
-
-        $response->assertOk();
-
         /**
          * We'll proceed to the verification
          * and check if the accounts are valid.
          */
-        $responseData = $response->json();
-        $newExpensevalue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
-        $existingExpense = TransactionHistory::where( 'procurement_id', $responseData[ 'data' ][ 'procurement' ][ 'id' ] )->first();
-
-        $this->assertTrue( $existingExpense instanceof TransactionHistory, __( 'No cash flow were created for the paid procurement.' ) );
-        $this->assertSame( (float) $existingExpense[ 'value' ], (float) $responseData[ 'data' ][ 'procurement' ][ 'cost' ], __( 'The attached procurement value doesn\'t match the transaction value.' ) );
-
         $response->assertJson( [ 'status' => 'success' ] );
 
-        /**
-         * We'll check if the expense value
-         * has increased due to the procurement
-         */
-        $this->assertEquals(
-            Currency::raw( $newExpensevalue ),
-            Currency::raw( (float) $currentExpenseValue + (float) $responseData[ 'data' ][ 'procurement' ][ 'cost' ] )
-        );
+        return $response->json();
     }
 
     protected function attemptDeleteProcurementWithConvertedProducts()
@@ -290,6 +242,18 @@ trait WithProcurementTest
         $this->assertSame( $baseQuantity, $lastNewBaseQuantity, 'The product doesn\'t have the original quantity after deletion' );
     }
 
+    protected function attemptDeleteProcurementWithId( $id )
+    {
+        /**
+         * lets now delete to see if products
+         * was returned
+         */
+        $response = $this->withSession( $this->app[ 'session' ]->all() )
+            ->json( 'DELETE', 'api/procurements/' . $id );
+
+        $response->assertOk();
+    }
+
     protected function attemptDeleteProcurement()
     {
         /**
@@ -352,8 +316,8 @@ trait WithProcurementTest
             $initialQuantity = collect( $initialQuantities )->filter( fn( $q ) => (int) $q[ 'product_id' ] === (int) $product[ 'product_id' ] && (int) $q[ 'unit_id' ] === (int) $product[ 'unit_id' ] )->first();
 
             $this->assertSame(
-                ns()->currency->define( $currentQuantity )->getRaw(),
-                ns()->currency->define( $initialQuantity[ 'current_quantity' ] )->additionateBy( $initialQuantity[ 'procured_quantity' ] )->getRaw(),
+                ns()->currency->define( $currentQuantity )->toFloat(),
+                ns()->currency->define( $initialQuantity[ 'current_quantity' ] )->additionateBy( $initialQuantity[ 'procured_quantity' ] )->toFloat(),
                 sprintf(
                     'The product "%s" didn\'t has it\'s inventory updated after a procurement. "%s" is the actual value, "%s" was added and "%s" was expected.',
                     $product[ 'name' ],
@@ -391,8 +355,8 @@ trait WithProcurementTest
             $actualProduct = collect( $initialQuantities )->filter( fn( $q ) => (int) $q[ 'product_id' ] === (int) $product[ 'product_id' ] && (int) $q[ 'unit_id' ] === (int) $product[ 'unit_id' ] )->first();
 
             $this->assertSame(
-                ns()->currency->define( $currentQuantity )->getRaw(),
-                ns()->currency->define( $product[ 'current_quantity' ] )->subtractBy( $product[ 'procured_quantity' ] )->getRaw(),
+                ns()->currency->define( $currentQuantity )->toFloat(),
+                ns()->currency->define( $product[ 'current_quantity' ] )->subtractBy( $product[ 'procured_quantity' ] )->toFloat(),
                 sprintf(
                     'The product "%s" didn\'t has it\'s inventory updated after a procurement deletion. "%s" is the actual value, "%s" was removed and "%s" was expected.',
                     $product[ 'name' ],
@@ -488,7 +452,6 @@ trait WithProcurementTest
          */
         $testService = app()->make( TestService::class );
 
-        $currentExpenseValue = TransactionHistory::where( 'transaction_account_id', ns()->option->get( 'ns_procurement_cashflow_account' ) )->sum( 'value' );
         $procurementsDetails = $testService->prepareProcurement( ns()->date->now(), [
             'general.payment_status' => Procurement::PAYMENT_PAID,
             'general.delivery_status' => Procurement::DELIVERED,

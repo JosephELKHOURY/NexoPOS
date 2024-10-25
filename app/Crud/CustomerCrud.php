@@ -82,7 +82,7 @@ class CustomerCrud extends CrudService
      */
     public $relations = [
         'leftJoin' => [
-            [ 'nexopos_customers_groups as group', 'nexopos_users.group_id', '=', 'group.id' ]
+            [ 'nexopos_customers_groups as group', 'nexopos_users.group_id', '=', 'group.id' ],
         ],
         [ 'nexopos_users as user', 'user.id', '=', 'nexopos_users.author' ],
     ];
@@ -241,8 +241,17 @@ class CustomerCrud extends CrudService
                             name: 'email',
                             value: $entry->email ?? '',
                             validation: collect( [
-                                'sometimes', 'email',
-                                $entry instanceof Customer && ! empty( $entry->email ) ? Rule::unique( 'nexopos_users', 'email' )->ignore( $entry->id ) : Rule::unique( 'nexopos_users', 'email' ),
+                                function ( $attribute, $value, $fail ) {
+                                    if ( strlen( $value ) > 0 ) {
+                                        /**
+                                         * let's check if $value is a
+                                         * valid email using preg_match
+                                         */
+                                        if ( preg_match( '/^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$/', $value ) === 0 ) {
+                                            return $fail( __( "The \"$attribute\" provided is not valid." ) );
+                                        }
+                                    }
+                                },
                             ] )->filter()->toArray(),
                             description: __( 'Provide the customer email.' ),
                         ),
@@ -342,7 +351,7 @@ class CustomerCrud extends CrudService
                 $group = CustomerGroup::find( $value );
 
                 if ( ! $group instanceof CustomerGroup ) {
-                    throw new NotAllowedException( __( 'The assigned default customer group doesn\'t exist or is not defined.' ) );
+                    throw new NotAllowedException( __( 'The assigned default customer group doesn\'t exist or has been deleted.' ) );
                 }
             }
 

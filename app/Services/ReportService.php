@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Classes\Currency;
 use App\Classes\Hook;
 use App\Jobs\EnsureCombinedProductHistoryExistsJob;
+use App\Models\ActiveTransactionHistory;
 use App\Models\Customer;
 use App\Models\CustomerAccountHistory;
 use App\Models\DashboardDay;
@@ -16,7 +17,7 @@ use App\Models\ProductHistory;
 use App\Models\ProductHistoryCombined;
 use App\Models\ProductUnitQuantity;
 use App\Models\Role;
-use App\Models\ActiveTransactionHistory;
+use App\Models\TransactionAccount;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -224,7 +225,7 @@ class ReportService
             ->sum( 'value' );
 
         $todayReport->day_expenses = $totalExpenses;
-        $todayReport->day_income = $totalIncome - $totalExpenses;
+        $todayReport->day_income = $totalIncome;
         $todayReport->total_income = ( $previousReport->total_income ?? 0 ) + $todayReport->day_income;
         $todayReport->total_expenses = ( $previousReport->total_expenses ?? 0 ) + $todayReport->day_expenses;
     }
@@ -410,10 +411,9 @@ class ReportService
     /**
      * This return the year report
      *
-     * @param  string $year
-     * @return array  $reports
+     * @return array $reports
      */
-    public function getYearReportFor( $year )
+    public function getYearReportFor( int $year )
     {
         $date = $this->dateService->now();
         $date->year = $year >= 2019 && $year <= 2099 ? $year : 2020; // validate the date
@@ -454,10 +454,6 @@ class ReportService
         $startDate = Carbon::parse( $startDate );
         $endDate = Carbon::parse( $endDate );
         $diffInDays = Carbon::parse( $startDate )->diffInDays( $endDate );
-
-        $orderProductTable = Hook::filter( 'ns-model-table', 'nexopos_orders_products' );
-        $productsTable = Hook::filter( 'ns-model-table', 'nexopos_products' );
-        $unitstable = Hook::filter( 'ns-model-table', 'nexopos_units' );
 
         if ( $diffInDays > 0 ) {
             // check if it's the start and end of the month
@@ -553,8 +549,6 @@ class ReportService
     {
         $orderProductTable = Hook::filter( 'ns-model-table', 'nexopos_orders_products' );
         $orderTable = Hook::filter( 'ns-model-table', 'nexopos_orders' );
-        $productsTable = Hook::filter( 'ns-model-table', 'nexopos_products' );
-        $unitstable = Hook::filter( 'ns-model-table', 'nexopos_units' );
 
         switch ( $sort ) {
             case 'using_quantity_asc':
@@ -828,11 +822,11 @@ class ReportService
         /**
          * That will sum all the total prices
          */
-        $result    =   $categories->map( function ( $category ) use ( $products ) {
-            $categoryWithProducts   =   [...$category->toArray()];
+        $result = $categories->map( function ( $category ) use ( $products ) {
+            $categoryWithProducts = [...$category->toArray()];
 
             $rawProducts = collect( $products->where( 'product_category_id', $category->id )->all() )->values();
-            $mergedProducts     =   [];
+            $mergedProducts = [];
 
             /**
              * this will merge similar products
@@ -852,7 +846,7 @@ class ReportService
                         'discount' => $product->discount,
                         'total_price' => $product->total_price,
                         'total_purchase_price' => $product->total_purchase_price,
-                        'name'  =>  $product->name,
+                        'name' => $product->name,
                         'product_id' => $product->product_id,
                         'unit_id' => $product->unit_id,
                     ] );
@@ -867,7 +861,7 @@ class ReportService
             $categoryWithProducts[ 'total_purchase_price' ] = collect( $mergedProducts )->sum( 'total_purchase_price' );
 
             return $categoryWithProducts;
-        });
+        } );
 
         return compact( 'result', 'summary' );
     }
@@ -1133,63 +1127,61 @@ class ReportService
 
     /**
      * Will compute the product history combined for the whole day
-     * @param ProductHistory $productHistory
-     * @return ProductHistoryCombined
      */
     public function computeProductHistoryCombinedForWholeDay( ProductHistory $productHistory ): ProductHistoryCombined
     {
-        $startOfDay    =   Carbon::parse( $productHistory->created_at )->startOfDay();
-        $endOfDay       =   Carbon::parse( $productHistory->created_at )->endOfDay();
+        $startOfDay = Carbon::parse( $productHistory->created_at )->startOfDay();
+        $endOfDay = Carbon::parse( $productHistory->created_at )->endOfDay();
 
-        $initialQuantity    =   0;
+        $initialQuantity = 0;
 
-        $previousProductHistory     =   ProductHistoryCombined::where( 'date', '<', $startOfDay->toDateTimeString() )
+        $previousProductHistory = ProductHistoryCombined::where( 'date', '<', $startOfDay->toDateTimeString() )
             ->where( 'product_id', $productHistory->product_id )
             ->where( 'unit_id', $productHistory->unit_id )
             ->orderBy( 'date', 'desc' )
             ->first();
 
         if ( $previousProductHistory ) {
-            $initialQuantity    =   $previousProductHistory->final_quantity;
+            $initialQuantity = $previousProductHistory->final_quantity;
         }
 
-        $addedQuantity      =   ProductHistory::where( 'operation_type', ProductHistory::ACTION_ADDED )
+        $addedQuantity = ProductHistory::where( 'operation_type', ProductHistory::ACTION_ADDED )
             ->where( 'product_id', $productHistory->product_id )
             ->where( 'unit_id', $productHistory->unit_id )
             ->where( 'created_at', '>=', $startOfDay->toDateTimeString() )
             ->where( 'created_at', '<=', $endOfDay->toDateTimeString() )
             ->sum( 'quantity' );
 
-        $defectiveQuantity  =   ProductHistory::where( 'operation_type', ProductHistory::ACTION_DEFECTIVE )
+        $defectiveQuantity = ProductHistory::where( 'operation_type', ProductHistory::ACTION_DEFECTIVE )
             ->where( 'product_id', $productHistory->product_id )
             ->where( 'unit_id', $productHistory->unit_id )
             ->where( 'created_at', '>=', $startOfDay->toDateTimeString() )
             ->where( 'created_at', '<=', $endOfDay->toDateTimeString() )
             ->sum( 'quantity' );
 
-        $soldQuantity   =   ProductHistory::where( 'operation_type', ProductHistory::ACTION_SOLD )
+        $soldQuantity = ProductHistory::where( 'operation_type', ProductHistory::ACTION_SOLD )
             ->where( 'product_id', $productHistory->product_id )
             ->where( 'unit_id', $productHistory->unit_id )
             ->where( 'created_at', '>=', $startOfDay->toDateTimeString() )
             ->where( 'created_at', '<=', $endOfDay->toDateTimeString() )
             ->sum( 'quantity' );
 
-        $finalQuantity  =   $initialQuantity + $addedQuantity - $defectiveQuantity - $soldQuantity;
+        $finalQuantity = $initialQuantity + $addedQuantity - $defectiveQuantity - $soldQuantity;
 
         $productHistoryCombined = ProductHistoryCombined::where( 'date', $startOfDay->format( 'Y-m-d' ) )
             ->where( 'product_id', $productHistory->product_id )
             ->where( 'unit_id', $productHistory->unit_id )
             ->firstOrNew();
 
-        $productHistoryCombined->final_quantity     =   $finalQuantity;
-        $productHistoryCombined->initial_quantity   =   $initialQuantity;
-        $productHistoryCombined->procured_quantity  =   $addedQuantity;
-        $productHistoryCombined->defective_quantity =   $defectiveQuantity;
-        $productHistoryCombined->sold_quantity      =   $soldQuantity;
-        $productHistoryCombined->product_id         =   $productHistory->product_id;
-        $productHistoryCombined->unit_id            =   $productHistory->unit_id;
-        $productHistoryCombined->name               =   $productHistory->product->name;
-        $productHistoryCombined->date               =   $startOfDay->format( 'Y-m-d' );
+        $productHistoryCombined->final_quantity = $finalQuantity;
+        $productHistoryCombined->initial_quantity = $initialQuantity;
+        $productHistoryCombined->procured_quantity = $addedQuantity;
+        $productHistoryCombined->defective_quantity = $defectiveQuantity;
+        $productHistoryCombined->sold_quantity = $soldQuantity;
+        $productHistoryCombined->product_id = $productHistory->product_id;
+        $productHistoryCombined->unit_id = $productHistory->unit_id;
+        $productHistoryCombined->name = $productHistory->product->name;
+        $productHistoryCombined->date = $startOfDay->format( 'Y-m-d' );
         $productHistoryCombined->save();
 
         return $productHistoryCombined;
@@ -1261,7 +1253,7 @@ class ReportService
             ->additionateBy( $currentDetailedHistory->procured_quantity )
             ->subtractBy( $currentDetailedHistory->sold_quantity )
             ->subtractBy( $currentDetailedHistory->defective_quantity )
-            ->getRaw();
+            ->toFloat();
 
         return $currentDetailedHistory;
     }
@@ -1316,6 +1308,39 @@ class ReportService
         return [
             'status' => 'success',
             'message' => __( 'The report will be generated. Try loading the report within few minutes.' ),
+        ];
+    }
+
+    public function getAccountSummaryReport( $startDate = null, $endDate = null )
+    {
+        $startDate = $startDate === null ? ns()->date->getNow()->startOfMonth()->toDateTimeString() : $startDate;
+        $endDate = $endDate === null ? ns()->date->getNow()->endOfMonth()->toDateTimeString() : $endDate;
+        $accounts   =   collect( config( 'accounting.accounts' ) )->map( function( $account, $name ) use ( $startDate, $endDate ) {
+            $transactionAccount     =   TransactionAccount::where( 'category_identifier', $name )->with([ 'histories' => function( $query ) use ( $startDate, $endDate ) {
+                $query->where( 'created_at', '>=', $startDate )->where( 'created_at', '<=', $endDate );
+            }])->get();
+
+            $transactions   =   $transactionAccount->map( function( $account ) {
+                return [
+                    'name'  =>  $account->name,
+                    'debits'    =>  $account->histories->where( 'operation', 'debit' )->sum( 'value' ),
+                    'credits'   =>  $account->histories->where( 'operation', 'credit' )->sum( 'value' ),
+                ];
+            } );
+
+            return [
+                'transactions'  =>  $transactions,
+                'name'          =>  $account[ 'label' ](),
+                'debits'        =>  $transactions->sum( 'debits' ),
+                'credits'       =>  $transactions->sum( 'credits' ),
+            ];
+        });
+
+        return [
+            'accounts'  => $accounts,
+            'debits'    => $accounts->sum( 'debits' ),
+            'credits'   => $accounts->sum( 'credits' ),
+            'profit'    => ns()->currency->define( $accounts->sum( 'credits' ) )->subtractBy( $accounts->sum( 'debits' ) )->toFloat(),
         ];
     }
 }

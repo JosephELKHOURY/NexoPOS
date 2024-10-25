@@ -189,7 +189,7 @@ class TransactionCrud extends CrudService
                         FormInput::searchSelect(
                             label: __( 'Transaction Account' ),
                             name: 'account_id',
-                            description: __( 'Assign the transaction to an account430' ),
+                            description: __( 'Assign the transaction to an account' ),
                             validation: 'required',
                             props: TransactionAccountCrud::getFormConfig(),
                             component: 'nsCrudForm',
@@ -240,6 +240,15 @@ class TransactionCrud extends CrudService
                                 ], [
                                     'label' => __( 'X days After Month Starts' ),
                                     'value' => 'x_after_month_starts',
+                                ], [
+                                    'label' => __( 'Every X minutes' ),
+                                    'value' => 'every_x_minutes',
+                                ], [
+                                    'label' => __( 'Every X hours' ),
+                                    'value' => 'every_x_hours',
+                                ], [
+                                    'label' => __( 'Every X Days' ),
+                                    'value' => 'every_x_hours',
                                 ],
                             ],
                         ),
@@ -452,7 +461,7 @@ class TransactionCrud extends CrudService
      * Bulk Delete Action
      *
      * @param    object Request with object
-     * @return  false|bool
+     * @return false|bool
      */
     public function bulkAction( Request $request )
     {

@@ -43,7 +43,6 @@
     </div>
 </template>
 <script lang="ts">
-import { nsEvent, nsHttpClient } from '~/bootstrap';
 import nsPosConfirmPopupVue from './ns-pos-confirm-popup.vue';
 import nsPosOrderProductsPopupVue from './ns-pos-order-products-popup.vue';
 import nsPosPendingOrders from './ns-pos-pending-orders.vue';
@@ -51,7 +50,7 @@ import { __ } from '~/libraries/lang';
 import popupResolver from '~/libraries/popup-resolver';
 import popupCloser from '~/libraries/popup-closer';
 
-declare const POS, Popup;
+declare const POS, Popup, nsEvent, nsHttpClient;
 
 export default {
     props: [ 'popup' ],
@@ -103,8 +102,8 @@ export default {
 
             if ( products.length > 0 ) {
                 return Popup.show( nsPosConfirmPopupVue, {
-                    title: 'Confirm Your Action',
-                    message: 'The cart is not empty. Opening an order will clear your cart would you proceed ?',
+                    title: __( 'Confirm Your Action' ),
+                    message: __( 'The cart is not empty. Opening an order will clear your cart would you proceed ?' ),
                     onAction: ( action ) => {
                         if ( action ) {
                             this.openOrder( order );

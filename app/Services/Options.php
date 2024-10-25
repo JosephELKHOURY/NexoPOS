@@ -3,24 +3,11 @@
 namespace App\Services;
 
 use App\Models\Option;
+use App\Models\PaymentType;
 
 class Options
 {
     private $rawOptions = [];
-
-    private $options = [];
-
-    private $isUserOptions = false;
-
-    private $option;
-
-    private $user_id;
-
-    private $value;
-
-    private $hasFound;
-
-    private $removableIndex;
 
     public string $tableName;
 
@@ -46,13 +33,14 @@ class Options
         $defaultOptions = [
             'ns_registration_enabled' => 'no',
             'ns_store_name' => 'NexoPOS',
-            'ns_pos_allow_decimal_quantities'   => 'yes',
-            'ns_pos_quick_product'  =>  'yes',
-            'ns_pos_show_quantity'  =>  'yes',
+            'ns_pos_allow_decimal_quantities' => 'yes',
+            'ns_pos_quick_product' => 'yes',
+            'ns_pos_show_quantity' => 'yes',
             'ns_currency_precision' => 2,
             'ns_pos_hide_empty_categories' => 'yes',
             'ns_pos_unit_price_ediable' => 'yes',
             'ns_pos_order_types' => [ 'takeaway', 'delivery' ],
+            'ns_pos_registers_default_change_payment_type' => PaymentType::where( 'identifier', 'cash-payment' )->first()?->id ?? 1,
         ];
 
         $options = array_merge( $defaultOptions, $options );
@@ -80,8 +68,6 @@ class Options
      **/
     public function build()
     {
-        $this->options = [];
-
         if ( Helper::installed() && empty( $this->rawOptions ) ) {
             $this->rawOptions = $this->option()
                 ->get()
@@ -110,8 +96,6 @@ class Options
          */
         $foundOption = collect( $this->rawOptions )->map( function ( $option, $index ) use ( $value, $key, $expiration ) {
             if ( $key === $index ) {
-                $this->hasFound = true;
-
                 $this->encodeOptionValue( $option, $value );
 
                 $option->expire_on = $expiration;

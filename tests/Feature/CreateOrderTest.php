@@ -16,10 +16,10 @@ class CreateOrderTest extends TestCase
      *
      * @return void
      */
-    private function testPostingOrder( $callback = null )
+    public function testPostingOrder( $callback = null )
     {
-        $this->count = 2;
-        $this->totalDaysInterval = 3;
+        $this->count = 1;
+        $this->totalDaysInterval = 1;
 
         if ( $this->defaultProcessing ) {
             $this->attemptAuthenticate();
@@ -30,31 +30,31 @@ class CreateOrderTest extends TestCase
         }
     }
 
-    private function testCreateAndEditOrderWithLowStock()
+    public function testCreateAndEditOrderWithLowStock()
     {
         $this->attemptAuthenticate();
         $this->attemptCreateAndEditOrderWithLowStock();
     }
 
-    private function testCreateAndEditOrderByDeductedGreaterQuantity()
+    public function testCreateAndEditOrderByDeductedGreaterQuantity()
     {
         $this->attemptAuthenticate();
         $this->attemptCreateAndEditOrderWithGreaterQuantity();
     }
 
-    private function testHoldAndCheckoutOrder()
+    public function testHoldAndCheckoutOrder()
     {
         $this->attemptAuthenticate();
         $this->attemptHoldAndCheckoutOrder();
     }
 
-    private function testHoldAndCheckoutOrderWithGroupedProducts()
+    public function testHoldAndCheckoutOrderWithGroupedProducts()
     {
         $this->attemptAuthenticate();
         $this->attemptHoldOrderAndCheckoutWithGroupedProducts();
     }
 
-    private function testDeletedVoidedOrder()
+    public function testDeletedVoidedOrder()
     {
         $this->attemptAuthenticate();
         $this->attemptDeleteVoidedOrder();

@@ -79,6 +79,34 @@ class BarcodeService
         return $barcode;
     }
 
+    public function getBarcodeInBase64( $barcode, $type, $height = 30 )
+    {
+        $generator = new BarcodeGeneratorPNG;
+
+        switch ( $type ) {
+            case 'ean8': $realType = $generator::TYPE_EAN_8;
+                break;
+            case 'ean13': $realType = $generator::TYPE_EAN_13;
+                break;
+            case 'codabar': $realType = $generator::TYPE_CODABAR;
+                break;
+            case 'code128': $realType = $generator::TYPE_CODE_128;
+                break;
+            case 'code39': $realType = $generator::TYPE_CODE_39;
+                break;
+            case 'code11': $realType = $generator::TYPE_CODE_11;
+                break;
+            case 'upca': $realType = $generator::TYPE_UPC_A;
+                break;
+            case 'upce': $realType = $generator::TYPE_UPC_E;
+                break;
+            default: $realType = $generator::TYPE_EAN_8;
+                break;
+        }
+
+        return base64_encode( $generator->getBarcode( $barcode, $realType, 3, $height ) );
+    }
+
     /**
      * generate barcode using a code and a code type
      *
@@ -127,25 +155,6 @@ class BarcodeService
                     $insight
                 )
             );
-        }
-    }
-
-    /**
-     * @deprecated
-     */
-    public function generateBarcodeValue( $type )
-    {
-        $faker = ( new Factory )->create();
-
-        switch ( $type ) {
-            case self::TYPE_CODE39: return strtoupper( Str::random( 10 ) );
-            case self::TYPE_CODE128: return strtoupper( Str::random( 10 ) );
-            case self::TYPE_EAN8: return $faker->randomNumber( 8, true );
-            case self::TYPE_EAN13: return $faker->randomNumber( 6, true ) . $faker->randomNumber( 6, true );
-            case self::TYPE_UPCA: return $faker->randomNumber( 5, true ) . $faker->randomNumber( 6, true );
-            case self::TYPE_UPCE: return $faker->randomNumber( 6, true );
-            case self::TYPE_CODABAR: return $faker->randomNumber( 8, true ) . $faker->randomNumber( 8, true );
-            case self::TYPE_CODE11: return $faker->randomNumber( 5, true ) . '-' . $faker->randomNumber( 4, true );
         }
     }
 }

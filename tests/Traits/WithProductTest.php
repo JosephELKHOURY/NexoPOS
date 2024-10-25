@@ -61,7 +61,7 @@ trait WithProductTest
                             'category_id' => $category->id,
                             'description' => __( 'Created via tests' ),
                             'product_type' => 'product',
-                            'type' => $faker->randomElement( [ Product::TYPE_MATERIALIZED, Product::TYPE_DEMATERIALIZED ] ),
+                            'type' => Product::TYPE_MATERIALIZED,
                             'sku' => Str::random( 15 ) . '-sku',
                             'status' => 'available',
                             'stock_management' => 'enabled',
@@ -264,7 +264,7 @@ trait WithProductTest
             ->map( fn( $cat ) => $cat->id )
             ->toArray();
 
-        $products = Product::where( 'type', Product::TYPE_DEMATERIALIZED )
+        $products = Product::withStockEnabled()
             ->notInGroup()
             ->notGrouped()
             ->limit( 2 )
@@ -280,11 +280,13 @@ trait WithProductTest
                     'unit_quantity_id' => $unitQuantityID,
                     'product_id' => $product->id,
                     'unit_id' => $unitQuantity->unit->id,
-                    'quantity' => $faker->randomNumber( 1 ),
+                    'quantity' => $faker->numberBetween( 1, 3 ),
                     'sale_price' => $unitQuantity->sale_price,
                 ];
             } )
             ->toArray();
+
+        $this->assertTrue( count( $products ) > 0, __( 'There is no product to create a grouped product' ) );
 
         $response = $this
             ->withSession( $this->app[ 'session' ]->all() )
@@ -398,6 +400,8 @@ trait WithProductTest
     protected function attemptTestSearchable()
     {
         $searchable = Product::searchable()->first();
+        $oldStatus  =   ns()->option->get( 'ns_pos_hide_empty_categories' );
+        ns()->option->set( 'ns_pos_hide_empty_categories', 'no' );
 
         if ( $searchable instanceof Product ) {
             $response = $this
@@ -408,6 +412,8 @@ trait WithProductTest
             $exists = collect( $response[ 'products' ] )
                 ->filter( fn( $product ) => (int) $product[ 'id' ] === (int) $searchable->id )
                 ->count() > 0;
+
+            ns()->option->set( 'ns_pos_hide_empty_categories', $oldStatus );
 
             return $this->assertTrue( $exists, __( 'Searchable product cannot be found on category.' ) );
         }
@@ -598,11 +604,6 @@ trait WithProductTest
 
     protected function attemptProductConversion()
     {
-        /**
-         * @var ProductService
-         */
-        $productService = app()->make( ProductService::class );
-
         $product = Product::where( 'type', Product::TYPE_MATERIALIZED )
             ->has( 'unit_quantities', '>=', 2 )
             ->with( 'unit_quantities.unit' )

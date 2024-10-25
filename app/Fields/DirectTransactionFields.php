@@ -10,7 +10,6 @@ use App\Models\Transaction;
 use App\Models\TransactionAccount;
 use App\Services\FieldsService;
 use App\Services\Helper;
-use App\Services\SettingsPage;
 
 class DirectTransactionFields extends FieldsService
 {
@@ -18,7 +17,11 @@ class DirectTransactionFields extends FieldsService
 
     public function __construct( ?Transaction $transaction = null )
     {
-        $this->fields     =   Hook::filter( 'ns-direct-transactions-fields', SettingForm::fields(
+        $allowedExpenseCategories = ns()->option->get( 'ns_accounting_expenses_accounts', [] );
+        
+        $accountOptions     =   TransactionAccount::categoryIdentifier( 'expenses' )->whereIn( 'id', $allowedExpenseCategories )->get();
+
+        $this->fields = Hook::filter( 'ns-direct-transactions-fields', SettingForm::fields(
             FormInput::text(
                 label: __( 'Name' ),
                 description: __( 'Describe the direct transaction.' ),
@@ -41,7 +44,7 @@ class DirectTransactionFields extends FieldsService
                 name: 'account_id',
                 props: TransactionAccountCrud::getFormConfig(),
                 component: 'nsCrudForm',
-                options: Helper::toJsOptions( TransactionAccount::get(), [ 'id', 'name' ] ),
+                options: Helper::toJsOptions( $accountOptions, [ 'id', 'name' ] ),
                 value: $transaction ? $transaction->account_id : null
             ),
             FormInput::number(
@@ -69,7 +72,7 @@ class DirectTransactionFields extends FieldsService
                 name: 'type',
                 value: $transaction ? $transaction->type : null
             ),
-        ));
+        ) );
 
         if ( $transaction instanceof Transaction ) {
             foreach ( $this->fields as $key => $field ) {

@@ -165,6 +165,7 @@ export default {
             }
         },
         makeFullPayment() {
+            const order     =   POS.order.getValue();
             Popup.show( nsPosConfirmPopupVue, {
                 title: __( 'Confirm Full Payment' ),
                 message: __( 'A full payment will be made using {paymentType} for {total}' )
@@ -221,7 +222,7 @@ export default {
                     this.backValue      =   '0';
                     this.allSelected    =   false;
                 } else {
-                    this.backValue      =   this.backValue.substr( 1 );
+                    this.backValue      =   this.backValue.slice(0, -1);
                 }
             } else if ( key.value.toString().match( /^\d+$/ ) ) {
                 if ( this.allSelected ) {

@@ -156,13 +156,15 @@
                         </tr>
                         <tr class="success">
                             <td width="200" class="border p-2">
-                                <template v-if="order && options.ns_pos_tax_type === 'exclusive'">
-                                    <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
-                                    <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
-                                </template>
-                                <template v-else-if="order && options.ns_pos_tax_type === 'inclusive'">
-                                    <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + ( order.products_exclusive_tax_value + order.products_inclusive_tax_value ) ) }}</a>
-                                    <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
+                                <template v-if="options.ns_pos_vat !== 'disabled'">
+                                    <template v-if="order && options.ns_pos_tax_type === 'exclusive'">
+                                        <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
+                                        <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
+                                    </template>
+                                    <template v-else-if="order && options.ns_pos_tax_type === 'inclusive'">
+                                        <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + ( order.products_tax_value ) ) }}</a>
+                                        <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
+                                    </template>
                                 </template>
                             </td>
                             <td width="200" class="border p-2">{{ __( 'Total' ) }}</td>
@@ -212,13 +214,15 @@
                         </tr>
                         <tr class="success">
                             <td width="200" class="border p-2">
-                                <template v-if="order && options.ns_pos_tax_type === 'exclusive'">
-                                    <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
-                                    <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Inclusive' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
-                                </template>
-                                <template v-else-if="order && options.ns_pos_tax_type === 'inclusive'">
-                                    <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
-                                    <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
+                                <template v-if="options.ns_pos_vat !== 'disabled'">
+                                    <template v-if="order && options.ns_pos_tax_type === 'exclusive'">
+                                        <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
+                                        <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Inclusive' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
+                                    </template>
+                                    <template v-else-if="order && options.ns_pos_tax_type === 'inclusive'">
+                                        <a v-if="options.ns_pos_price_with_tax === 'yes'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value ) }}</a>
+                                        <a v-else-if="options.ns_pos_price_with_tax === 'no'" @click="openTaxSummary()" class="cursor-pointer outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ __( 'Tax Included' ) }}: {{ nsCurrency( order.total_tax_value + order.products_tax_value ) }}</a>
+                                    </template>
                                 </template>
                             </td>
                             <td width="200" class="border p-2">
@@ -454,7 +458,9 @@ export default {
                     const quantities  =   {
                         ...product.$quantities(), 
                         ...{
-                            custom_price_edit : newPrice
+                            custom_price_edit : newPrice,
+                            custom_price_with_tax: newPrice,
+                            custom_price_without_tax: newPrice
                         }
                     }
 
@@ -465,7 +471,6 @@ export default {
                      * to avoid restoring the original prices.
                      */
                     product.mode    =   'custom';
-                    product         =   POS.computeProductTax( product );
                                         
                     POS.recomputeProducts( POS.products.getValue() );
                     POS.refreshCart();
@@ -556,7 +561,7 @@ export default {
             Popup.show( nsPosCustomerPopupVue );
         },
 
-        openDiscountPopup( reference, type ) {
+        async openDiscountPopup( reference, type, index = null ) {
             if ( ! this.settings.products_discount && type === 'product' ) {
                 return nsSnackBar.error( __( `You're not allowed to add a discount on the product.` ) ).subscribe();
             }
@@ -565,23 +570,40 @@ export default {
                 return nsSnackBar.error( __( `You're not allowed to add a discount on the cart.` ) ).subscribe();
             }
 
-            const promise   =   new Promise( ( resolve, reject ) => {
-                Popup.show( nsPosDiscountPopupVue, { 
-                    reference,
-                    resolve,
-                    reject,
-                    type,
-                    onSubmit( response ) {
-                        if ( type === 'product' ) {
-                            POS.updateProduct( reference, response );
-                        } else if ( type === 'cart' ) {
-                            POS.updateCart( reference, response );
+            if ( type === 'product' ) {
+                reference.disable_flat = true;
+            }
+
+            try {
+                const promise   =   await new Promise( ( resolve, reject ) => {
+                    Popup.show( nsPosDiscountPopupVue, { 
+                        reference,
+                        resolve,
+                        reject,
+                        type,
+                        onSubmit( response ) {
+                            /**
+                             * we should check here, if the discount is flat, we'll make sure
+                             * the amount doesn't exceed the total_price of the product.
+                             */
+                            if ( response.discount_type === 'flat' && response.discount > reference.total_price ) {
+                                return nsSnackBar.error( __( 'The discount amount can\'t exceed the total price of the product.' ) ).subscribe();
+                            }
+                            
+                            
+                            if ( type === 'product' ) {
+                                POS.updateProduct( reference, response, index );
+                            } else if ( type === 'cart' ) {
+                                POS.updateCart( reference, response );
+                            }
                         }
-                    }
-                }, {
-                    popupClass: 'bg-white h:2/3 shadow-lg xl:w-1/4 lg:w-2/5 md:w-2/3 w-full'
+                    }, {
+                        popupClass: 'bg-white h:2/3 shadow-lg xl:w-1/4 lg:w-2/5 md:w-2/3 w-full'
+                    })
                 })
-            })
+            } catch ( exception ) {
+                // the popup might just be closed...
+            }
         },
 
         toggleMode( product, index ) {

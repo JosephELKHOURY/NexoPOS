@@ -405,9 +405,10 @@ class RegisterHistoryCrud extends CrudService
         ];
     }
 
-    public function getTableFooter(Output $output): Output
+    public function getTableFooter( Output $output ): Output
     {
         $output->addView( 'pages.dashboard.cash-registers.history.footer' );
+
         return $output;
     }
 
@@ -417,10 +418,13 @@ class RegisterHistoryCrud extends CrudService
     public function setActions( CrudEntry $entry ): CrudEntry
     {
         switch ( $entry->action ) {
-            case RegisterHistory::ACTION_SALE:
+            case RegisterHistory::ACTION_ORDER_PAYMENT:
                 $entry->{ '$cssClass' } = 'success border';
                 break;
-            case RegisterHistory::ACTION_CASHIN:
+            case RegisterHistory::ACTION_CASHING:
+                $entry->{ '$cssClass' } = 'success border';
+                break;
+            case RegisterHistory::ACTION_ACCOUNT_PAY:
                 $entry->{ '$cssClass' } = 'success border';
                 break;
             case RegisterHistory::ACTION_OPENING:
@@ -429,19 +433,27 @@ class RegisterHistoryCrud extends CrudService
             case RegisterHistory::ACTION_CASHOUT:
                 $entry->{ '$cssClass' } = 'warning border';
                 break;
-            case RegisterHistory::ACTION_CASHOUT:
+            case RegisterHistory::ACTION_ACCOUNT_CHANGE:
                 $entry->{ '$cssClass' } = 'warning border';
                 break;
-            case RegisterHistory::ACTION_CLOSING:
+            case RegisterHistory::ACTION_ORDER_CHANGE:
                 $entry->{ '$cssClass' } = 'warning border';
                 break;
         }
 
         if ( $entry->action === RegisterHistory::ACTION_CLOSING && (float) $entry->balance_after != 0 ) {
-            $entry->{ '$cssClass' } = 'error border';
+            // $entry->{ '$cssClass' } = 'error border';
         }
 
-        $entry->action( 
+        if ( $entry->action === RegisterHistory::ACTION_CLOSING && $entry->transaction_type === 'unchanged' ) {
+            $entry->{ '$cssClass' } = 'success border';
+        } else if ( $entry->action === RegisterHistory::ACTION_CLOSING && $entry->transaction_type === 'positive' ) {
+            $entry->{ '$cssClass' } = 'warning border';
+        } else if ( $entry->action === RegisterHistory::ACTION_CLOSING && $entry->transaction_type === 'negative' ) {
+            $entry->{ '$cssClass' } = 'warning border';
+        }
+
+        $entry->action(
             label: __( 'Details' ),
             identifier: 'view-details',
             type: 'POPUP'

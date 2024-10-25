@@ -2,9 +2,12 @@
 
 namespace App\Crud;
 
+use App\Casts\AccountingCategoryCast;
 use App\Casts\CurrencyCast;
 use App\Classes\CrudTable;
 use App\Exceptions\NotAllowedException;
+use App\Models\Transaction;
+use App\Models\TransactionAccount;
 use App\Models\TransactionHistory;
 use App\Models\User;
 use App\Services\CrudEntry;
@@ -72,7 +75,7 @@ class TransactionsHistoryCrud extends CrudService
      */
     public $relations = [
         'leftJoin' => [
-            [ 'nexopos_transactions as transaction', 'transaction.id', '=', 'nexopos_transactions_histories.transaction_id' ]
+            [ 'nexopos_transactions as transaction', 'transaction.id', '=', 'nexopos_transactions_histories.transaction_id' ],
         ],
         [ 'nexopos_users as users', 'users.id', '=', 'nexopos_transactions_histories.author' ],
         [ 'nexopos_transactions_accounts as transactions_accounts', 'transactions_accounts.id', '=', 'nexopos_transactions_histories.transaction_account_id' ],
@@ -102,7 +105,7 @@ class TransactionsHistoryCrud extends CrudService
      * ]
      */
     public $pick = [
-        'transactions_accounts' => [ 'name' ],
+        'transactions_accounts' => [ 'name', 'category_identifier' ],
     ];
 
     /**
@@ -135,8 +138,9 @@ class TransactionsHistoryCrud extends CrudService
      */
     public $skippable = [];
 
-    protected $casts    =   [
-        'value' =>  CurrencyCast::class,
+    protected $casts = [
+        'value' => CurrencyCast::class,
+        'transactions_accounts_category_identifier' =>  AccountingCategoryCast::class,
     ];
 
     /**
@@ -145,8 +149,6 @@ class TransactionsHistoryCrud extends CrudService
     public function __construct()
     {
         parent::__construct();
-
-        Hook::addFilter( $this->namespace . '-crud-actions', [ $this, 'addActions' ], 10, 2 );
     }
 
     /**
@@ -327,8 +329,8 @@ class TransactionsHistoryCrud extends CrudService
     {
         return CrudTable::columns(
             CrudTable::column( __( 'Name' ), 'name' ),
-            CrudTable::column( __( 'Status' ), 'status' ),
-            CrudTable::column( __( 'Account Name' ), 'transactions_accounts_name' ),
+            CrudTable::column( __( 'Main Account' ), 'transactions_accounts_category_identifier' ),
+            CrudTable::column( __( 'Sub Account' ), 'transactions_accounts_name' ),
             CrudTable::column( __( 'Operation' ), 'operation' ),
             CrudTable::column( __( 'Value' ), 'value' ),
             CrudTable::column( __( 'Author' ), 'users_username' ),
@@ -345,13 +347,33 @@ class TransactionsHistoryCrud extends CrudService
             $entry->addClass( 'info' );
         }
 
+        $hasReflection  = TransactionHistory::where( 'reflection_source_id', $entry->id )->count() > 0; 
+        $hasTransaction = Transaction::where( 'id', $entry->transaction_id )->count() > 0;
+
+        /**
+         * If the transaction history has not been reflected yet
+         * and result from a transaction, we can create a reflection
+         * as this is an indirect transaction history.
+         */
+        if ( ! $hasReflection && $hasTransaction && ( bool ) $entry->is_reflection === false ) {
+            $entry->action(
+                label: '<i class="mr-2 las la-eye"></i> ' . __( 'Create Reflection' ),
+                url: ns()->url( 'api/transactions/history/' . $entry->id . '/create-reflection' ),
+                type: 'GET',
+                identifier: 'create_reflection',
+                confirm: [
+                    'message' => __( 'Are you sure you want to create a reflection for this transaction history?' ),
+                ]
+            );
+        }
+
         $entry->action(
             label: '<i class="mr-2 las la-trash"></i> ' . __( 'Delete' ),
             identifier: 'delete',
             url: ns()->url( 'api/crud/' . self::IDENTIFIER . '/' . $entry->id ),
             type: 'DELETE',
             confirm: [
-                'message'   =>  __( 'Are you sure you want to delete this transaction history?' ),
+                'message' => __( 'Are you sure you want to delete this transaction history?' ),
             ]
         );
 

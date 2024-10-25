@@ -2,12 +2,18 @@
 
 namespace App\Services;
 
+use App\Classes\Hook;
+use App\Events\CashRegisterHistoryAfterAllDeletedEvent;
+use App\Events\CashRegisterHistoryAfterDeletedEvent;
 use App\Exceptions\NotAllowedException;
 use App\Models\Order;
 use App\Models\OrderPayment;
 use App\Models\Register;
 use App\Models\RegisterHistory;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class CashRegistersService
 {
@@ -16,7 +22,7 @@ class CashRegistersService
         if ( $register->status !== Register::STATUS_CLOSED ) {
             throw new NotAllowedException(
                 sprintf(
-                    __( 'Unable to open "%s" *, as it\'s not closed.' ),
+                    __( 'Unable to open "%s", as it\'s not closed.' ),
                     $register->name
                 )
             );
@@ -33,7 +39,7 @@ class CashRegistersService
         $registerHistory->description = $description;
         $registerHistory->balance_before = $register->balance;
         $registerHistory->value = $amount;
-        $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $amount )->getRaw();
+        $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $amount )->toFloat();
         $registerHistory->save();
 
         return [
@@ -57,18 +63,18 @@ class CashRegistersService
             );
         }
 
-        if ( (float) $register->balance === (float) $amount ) {
+        if ( ns()->currency->getRaw( $register->balance ) === ns()->currency->getRaw( $amount ) ) {
             $diffType = 'unchanged';
         } else {
-            $diffType = $register->balance < (float) $amount ? 'positive' : 'negative';
+            $diffType = ns()->currency->getRaw( $register->balance ) < ns()->currency->getRaw( $amount ) ? 'positive' : 'negative';
         }
 
         $registerHistory = new RegisterHistory;
         $registerHistory->register_id = $register->id;
         $registerHistory->action = RegisterHistory::ACTION_CLOSING;
         $registerHistory->transaction_type = $diffType;
-        $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $amount )->getRaw();
-        $registerHistory->value = ns()->currency->define( $amount )->getRaw();
+        $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $amount )->toFloat();
+        $registerHistory->value = ns()->currency->define( $amount )->toFloat();
         $registerHistory->balance_before = $register->balance;
         $registerHistory->author = Auth::id();
         $registerHistory->description = $description;
@@ -89,7 +95,7 @@ class CashRegistersService
         ];
     }
 
-    public function cashIn( Register $register, float $amount, ?string $description ): array
+    public function cashIng( Register $register, float $amount, ?string $description ): array
     {
         if ( $register->status !== Register::STATUS_OPENED ) {
             throw new NotAllowedException(
@@ -106,12 +112,12 @@ class CashRegistersService
 
         $registerHistory = new RegisterHistory;
         $registerHistory->register_id = $register->id;
-        $registerHistory->action = RegisterHistory::ACTION_CASHIN;
+        $registerHistory->action = RegisterHistory::ACTION_CASHING;
         $registerHistory->author = Auth::id();
         $registerHistory->description = $description;
         $registerHistory->balance_before = $register->balance;
-        $registerHistory->value = ns()->currency->define( $amount )->getRaw();
-        $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $amount )->getRaw();
+        $registerHistory->value = ns()->currency->define( $amount )->toFloat();
+        $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $amount )->toFloat();
         $registerHistory->save();
 
         return [
@@ -124,34 +130,74 @@ class CashRegistersService
         ];
     }
 
-    public function saleDelete( Register $register, float $amount, string $description ): array
+    public function saveOrderPayment( OrderPayment $orderPayment )
     {
-        if ( $register->balance - $amount < 0 ) {
-            throw new NotAllowedException(
-                sprintf(
-                    __( 'Not enough fund to delete a sale from "%s". If funds were cashed-out or disbursed, consider adding some cash (%s) to the register.' ),
-                    $register->name,
-                    trim( (string) ns()->currency->define( $amount ) )
-                )
-            );
+        $register = Register::find( $orderPayment->order->register_id );
+
+        if ( ! $register instanceof Register ) {
+            return [
+                'status' => 'info',
+                'message' => __( 'We can\'t attach a payment to a register as it\'s reference is not provided.' ),
+            ];
         }
 
-        $registerHistory = new RegisterHistory;
-        $registerHistory->register_id = $register->id;
-        $registerHistory->action = RegisterHistory::ACTION_DELETE;
-        $registerHistory->author = Auth::id();
-        $registerHistory->description = $description;
-        $registerHistory->balance_before = $register->balance;
-        $registerHistory->value = ns()->currency->define( $amount )->getRaw();
-        $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $amount )->getRaw();
-        $registerHistory->save();
+        $cashRegisterHistory = RegisterHistory::where( 'payment_id', $orderPayment->id )->first();
+
+        /**
+         * if the cash register history doesn't exists
+         * then we'll create it for the payment.
+         */
+        if ( ! $cashRegisterHistory instanceof RegisterHistory ) {
+            $cashRegisterHistory = new RegisterHistory;
+            $cashRegisterHistory->register_id = $orderPayment->order->register_id;
+            $cashRegisterHistory->payment_id = $orderPayment->id;
+            $cashRegisterHistory->payment_type_id = $orderPayment->type->id;
+            $cashRegisterHistory->order_id = $orderPayment->order_id;
+            $cashRegisterHistory->action = RegisterHistory::ACTION_ORDER_PAYMENT;
+            $cashRegisterHistory->author = $orderPayment->order->author;
+            $cashRegisterHistory->balance_before = $register->balance;
+            $cashRegisterHistory->value = ns()->currency->define( $orderPayment->value )->toFloat();
+            $cashRegisterHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $orderPayment->value )->toFloat();
+            $cashRegisterHistory->save();
+
+            return [
+                'status' => 'success',
+                'message' => __( 'The cash register history has been successfully updated' ),
+                'data' => [
+                    'register' => $register,
+                    'history' => $cashRegisterHistory,
+                ],
+            ];
+        }
 
         return [
             'status' => 'success',
-            'message' => __( 'The cash has successfully been stored' ),
+            'message' => __( 'The cash register history has already been recorded' ),
             'data' => [
                 'register' => $register,
-                'history' => $registerHistory,
+                'history' => $cashRegisterHistory,
+            ],
+        ];
+    }
+    
+    public function deleteRegisterHistoryUsingOrder( $order ) 
+    {
+        $deletedRecord = RegisterHistory::where( 'order_id', $order->id )->delete();
+
+        /**
+         * The order that is being deleted might have not been created
+         * within a cash register. Therefore, there is no need to dispatch CashRegisterHistoryAfterAllDeletedEvent as
+         * the delete transaction failed above.
+         */
+        if ( $deletedRecord ) {
+            CashRegisterHistoryAfterAllDeletedEvent::dispatch( Register::find( $order->register_id ) );
+        }
+
+        return [
+            'status' => 'success',
+            'message' => __( 'The register history has been successfully deleted' ),
+            'data' => [
+                'order' => $order,
             ],
         ];
     }
@@ -185,9 +231,9 @@ class CashRegistersService
         $registerHistory->action = RegisterHistory::ACTION_CASHOUT;
         $registerHistory->author = Auth::id();
         $registerHistory->description = $description;
-        $registerHistory->balance_before = ns()->currency->define( $register->balance )->getRaw();
-        $registerHistory->value = ns()->currency->define( $amount )->getRaw();
-        $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $amount )->getRaw();
+        $registerHistory->balance_before = ns()->currency->define( $register->balance )->toFloat();
+        $registerHistory->value = ns()->currency->define( $amount )->toFloat();
+        $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $amount )->toFloat();
         $registerHistory->save();
 
         return [
@@ -220,132 +266,110 @@ class CashRegistersService
     }
 
     /**
-     * Will increase the register balance if it's assigned
-     * to the right store
-     *
+     * This will refresh the cash register
+     * using all the in actions and out actions
+     * that has been created after the last opening action.
+     */
+    public function refreshCashRegister( Register $cashRegister )
+    {
+        /**
+         * if the cash register is closed then we'll 
+         * skip the process.
+         */
+        if ( $cashRegister->status === Register::STATUS_CLOSED ) {
+            return [
+                'status' => 'failed',
+                'message' => __( 'Unable to refresh a cash register if it\'s not opened.' )
+            ];
+        }
+
+        /**
+         * We need to pull the last opening action
+         * as it's using the creation date we'll pull total in and out actions
+         */
+        $lastOpeningAction = RegisterHistory::where( 'register_id', $cashRegister->id )
+            ->where( 'action', RegisterHistory::ACTION_OPENING )
+            ->orderBy( 'id', 'desc' )
+            ->first();
+
+        $totalInActions = RegisterHistory::whereIn(
+                'action', RegisterHistory::IN_ACTIONS
+            )
+            ->where( 'created_at', '>=', $lastOpeningAction->created_at )
+            ->where( 'register_id', $cashRegister->id )->sum( 'value' );
+
+        $totalOutActions = RegisterHistory::whereIn(
+                'action', RegisterHistory::OUT_ACTIONS
+            )
+            ->where( 'created_at', '>=', $lastOpeningAction->created_at )
+            ->where( 'register_id', $cashRegister->id )->sum( 'value' );
+
+        $cashRegister->balance = ns()->currency->define( $totalInActions )->subtractBy( $totalOutActions )->toFloat();
+
+        $cashRegister->save();
+
+        return [
+            'status' => 'success',
+            'message' => _( 'The register has been successfully refreshed.' )
+        ];
+    }
+
+    
+
+    /**
+     * @todo For now we'll change the order change as cash
+     * we'll late add support for two more change methods
+     * 
+     * @param Order $order
      * @return void
      */
-    public function recordCashRegisterHistorySale( Order $order )
+    public function saveOrderChange( Order $order )
     {
-        if ( $order->register_id !== null ) {
+        // If we might assume only paid orders are passed here,
+        // we'll still need make sure to check the payment status
+        if ( $order->payment_status == Order::PAYMENT_PAID && $order->change > 0 ) {
             $register = Register::find( $order->register_id );
 
-            /**
-             * The customer wallet shouldn't be counted as
-             * a payment that goes into the cash register.
-             */
-            $payments = $order->payments()
-                ->with( 'type' )
-                ->where( 'identifier', '<>', OrderPayment::PAYMENT_ACCOUNT )
-                ->get();
-
-            /**
-             * We'll only track on that cash register
-             * payment that was recorded on the current register
-             */
-            $payments->each( function ( OrderPayment $payment ) use ( $order, $register ) {
-                $isRecorded = RegisterHistory::where( 'order_id', $order->id )
-                    ->where( 'payment_id', $payment->id )
-                    ->where( 'register_id', $register->id )
-                    ->where( 'payment_type_id', $payment->type->id )
-                    ->where( 'order_id', $order->id )
-                    ->where( 'action', RegisterHistory::ACTION_SALE )
-                    ->first() instanceof RegisterHistory;
-
-                /**
-                 * if a similar transaction is not yet record
-                 * then we can record that on the register history.
-                 */
-                if ( ! $isRecorded ) {
-                    $registerHistory = new RegisterHistory;
-                    $registerHistory->balance_before = $register->balance;
-                    $registerHistory->value = ns()->currency->define( $payment->value )->getRaw();
-                    $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $payment->value )->getRaw();
-                    $registerHistory->register_id = $register->id;
-                    $registerHistory->payment_id = $payment->id;
-                    $registerHistory->payment_type_id = $payment->type->id;
-                    $registerHistory->order_id = $order->id;
-                    $registerHistory->action = RegisterHistory::ACTION_SALE;
-                    $registerHistory->author = $order->author;
-                    $registerHistory->save();
-                }
-            } );
-
-            $register->refresh();
-        }
-    }
-
-    /**
-     * Listen for payment status changes
-     * that only occurs if the order is updated
-     * and will update the register history accordingly.
-     */
-    public function createRegisterHistoryUsingPaymentStatus( Order $order, string $previous, string $new ): ?RegisterHistory
-    {
-        /**
-         * If the payment status changed from
-         * supported payment status to a "Paid" status.
-         */
-        if ( $order->register_id !== null && in_array( $previous, [
-            Order::PAYMENT_DUE,
-            Order::PAYMENT_HOLD,
-            Order::PAYMENT_PARTIALLY,
-            Order::PAYMENT_UNPAID,
-        ] ) && $new === Order::PAYMENT_PAID ) {
-            $register = Register::find( $order->register_id );
-
-            $registerHistory = new RegisterHistory;
-            $registerHistory->balance_before = $register->balance;
-            $registerHistory->value = $order->total;
-            $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $order->total )->getRaw();
-            $registerHistory->register_id = $order->register_id;
-            $registerHistory->action = RegisterHistory::ACTION_SALE;
-            $registerHistory->author = Auth::id();
-            $registerHistory->save();
-
-            return $registerHistory;
-        }
-
-        return null;
-    }
-
-    /**
-     * Listen to order created and
-     * will update the cash register if any order
-     * is marked as paid.
-     */
-    public function createRegisterHistoryFromPaidOrder( Order $order ): void
-    {
-        /**
-         * If the payment status changed from
-         * supported payment status to a "Paid" status.
-         */
-        if ( $order->register_id !== null && $order->payment_status === Order::PAYMENT_PAID ) {
-            $register = Register::find( $order->register_id );
-
-            $registerHistory = new RegisterHistory;
-            $registerHistory->balance_before = $register->balance;
-            $registerHistory->value = $order->total;
-            $registerHistory->balance_after = ns()->currency->define( $register->balance )->additionateBy( $order->total )->getRaw();
-            $registerHistory->register_id = $order->register_id;
-            $registerHistory->action = RegisterHistory::ACTION_SALE;
-            $registerHistory->author = Auth::id();
-            $registerHistory->save();
+            if ( $register instanceof Register ) {
+                $registerHistory = RegisterHistory::where( 'order_id', $order->id )
+                    ->where( 'action', RegisterHistory::ACTION_ORDER_CHANGE )
+                    ->firstOrNew();
+                
+                $registerHistory->payment_type_id = ns()->option->get( 'ns_pos_registers_default_change_payment_type' );
+                $registerHistory->register_id = $register->id;
+                $registerHistory->order_id = $order->id;
+                $registerHistory->action = RegisterHistory::ACTION_ORDER_CHANGE;
+                $registerHistory->author = $order->author;
+                $registerHistory->description = __( 'Change on cash' );
+                $registerHistory->balance_before = $register->balance;
+                $registerHistory->value = ns()->currency->define( $order->change )->toFloat();
+                $registerHistory->balance_after = ns()->currency->define( $register->balance )->subtractBy( $order->change )->toFloat();
+                $registerHistory->save();
+            }
         }
     }
 
     /**
      * returns human readable labels
      * for all register actions.
+     * 
+     * @todo we should add a custom action label besed
+     * on the order payment type.
      */
     public function getActionLabel( string $label ): string
     {
         switch ( $label ) {
-            case RegisterHistory::ACTION_CASHIN:
+            case RegisterHistory::ACTION_CASHING:
                 return __( 'Cash In' );
                 break;
             case RegisterHistory::ACTION_CASHOUT:
                 return __( 'Cash Out' );
+                break;
+            case RegisterHistory::ACTION_ORDER_CHANGE:
+                return __( 'Change On Cash' );
+                break;
+            case RegisterHistory::ACTION_ACCOUNT_CHANGE:
+                return __( 'Change On Customer Account' );
                 break;
             case RegisterHistory::ACTION_CLOSING:
                 return __( 'Closing' );
@@ -356,8 +380,8 @@ class CashRegistersService
             case RegisterHistory::ACTION_REFUND:
                 return __( 'Refund' );
                 break;
-            case RegisterHistory::ACTION_SALE:
-                return __( 'Sale' );
+            case RegisterHistory::ACTION_ORDER_PAYMENT:
+                return __( 'Cash Payment' );
                 break;
             default:
                 return $label;
@@ -412,5 +436,159 @@ class CashRegistersService
         }
 
         return $register;
+    }
+
+    private function diffInTime( $start, $end )
+    {
+        $startTime = Carbon::parse( $start );
+        $endTime = Carbon::parse( $end );
+
+        // Calculate the difference in total minutes
+        $totalMinutes = $endTime->diffInMinutes( $startTime );
+
+        // Calculate hours and minutes
+        $hours = intdiv( $totalMinutes, 60 );
+        $minutes = $totalMinutes % 60;
+
+        // Format the result
+        $formattedTime = sprintf( '%d:%02d', $hours, $minutes );
+
+        return $formattedTime;
+    }
+
+    public function getZReport( Register $register )
+    {
+        $opening = RegisterHistory::where( 'register_id', $register->id )
+            ->where( 'action', RegisterHistory::ACTION_OPENING )
+            ->orderBy( 'id', 'desc' )
+            ->first();
+
+        $closing = RegisterHistory::where( 'register_id', $register->id )
+            ->where( 'action', RegisterHistory::ACTION_CLOSING )
+            ->where( 'id', '>', $opening->id )
+            ->orderBy( 'id', 'desc' )
+            ->first();
+
+        $histories = RegisterHistory::where( 'register_id', $register->id )
+            ->where( 'created_at', '>=', $opening->created_at )
+            ->orderBy( 'id', 'desc' )
+            ->get();
+
+        $orders = Order::paid()
+            ->with( 'products' )
+            ->where( 'register_id', $register->id )
+            ->whereBetween( 'created_at', [ $opening->created_at, $closing->created_at ?? now()->toDateTimeString() ] )
+            ->get();
+
+        $payments = OrderPayment::whereIn( 'order_id', $orders->pluck( 'id' ) )
+            ->select( 'nexopos_payments_types.identifier', DB::raw( 'SUM(value) as total_amount' ), 'label' )
+            ->groupBy( [ 'identifier', 'label' ] )
+            ->join( 'nexopos_payments_types', 'nexopos_payments_types.identifier', '=', 'nexopos_orders_payments.identifier' )
+            ->get();
+
+        $totalCashPayment = OrderPayment::whereIn( 'order_id', $orders->pluck( 'id' ) )
+            ->where( 'identifier', OrderPayment::PAYMENT_CASH )
+            ->sum( 'value' );
+
+        $totalChange = $orders->sum( 'change' );
+        $cashOnHand = ns()->currency->define( $opening->value )
+            ->additionateBy( $totalCashPayment )
+            ->subtractBy( $totalChange )
+            ->toFloat();
+
+        $openedOn = ns()->date->getFormatted( $opening->created_at );
+        $closedOn = $closing ? ns()->date->getFormatted( $closing->created_at ) : __( 'Session Ongoing' );
+
+        $openingBalance = ns()->currency->define( $opening->value );
+        $closingBalance = ns()->currency->define( $closing->value ?? 0 );
+
+        $rawTotalSales = $orders->sum( 'total' );
+        $rawTotalShippings = $orders->sum( 'shipping' );
+        $rawTotalDiscounts = $orders->sum( 'discount' );
+        $rawTotalGrossSales = $orders->sum( 'subtotal' );
+        $rawTotalTaxes = $orders->sum( 'tax_value' );
+
+        $totalDiscounts = ns()->currency->define( $rawTotalDiscounts );
+        $totalSales = ns()->currency->define( $rawTotalSales );
+        $totalGrossSales = ns()->currency->define( $rawTotalGrossSales );
+        $totalShippings = ns()->currency->define( $rawTotalShippings );
+        $totalTaxes = ns()->currency->define( $rawTotalTaxes );
+
+        $sessionDuration = $this->diffInTime(
+            $closing->created_at ?? now()->toDateTimeString(),
+            $opening->created_at,
+        );
+
+        $difference = ns()->currency->define( $closing->value ?? 0 )
+            ->subtractBy(
+                ns()->currency
+                    ->define( $opening->value )
+                    ->additionateBy( $rawTotalSales )
+                    ->additionateBy( $rawTotalShippings )
+                    ->subtractBy( $rawTotalDiscounts )
+                    ->toFloat()
+            )
+            ->toFloat();
+
+        $categories = [];
+        $products = [];
+
+        $orders->each( function ( $order ) use ( &$categories, &$products ) {
+            return $order->products->each( function ( $item ) use ( &$categories, &$products ) {
+                if ( ! isset( $categories[ $item->product->category->name ] ) ) {
+                    $categories[ $item->product->category->id ] = [
+                        'name' => $item->product->category->name,
+                        'quantity' => 0,
+                    ];
+                }
+
+                $categories[ $item->product->category->id ][ 'quantity' ] += $item->quantity;
+
+                $productId = $item->product->id;
+
+                if ( ! isset( $products[$productId] ) ) {
+                    $products[$productId] = [
+                        'name' => $item->product->name,
+                        'total_price' => 0,
+                        'quantity' => 0,
+                        'tax_value' => 0,
+                        'discount' => 0,
+                    ];
+                }
+
+                $products[$productId]['total_price'] += $item->total_price;
+                $products[$productId]['quantity'] += $item->quantity;
+                $products[$productId]['tax_value'] += $item->tax_value;
+                $products[$productId]['discount'] += $item->discount;
+            } );
+        } );
+
+        $user = User::find( $opening->author );
+        $cashier = $user->first_name . ' ' . $user->last_name . '(' . $user->username . ')';
+
+        return (object) compact(
+            'register',
+            'opening',
+            'closing',
+            'openedOn',
+            'closedOn',
+            'histories',
+            'orders',
+            'openingBalance',
+            'closingBalance',
+            'difference',
+            'totalGrossSales',
+            'totalDiscounts',
+            'totalShippings',
+            'totalTaxes',
+            'totalSales',
+            'categories',
+            'cashier',
+            'sessionDuration',
+            'payments',
+            'cashOnHand',
+            'products',
+            'user'
+        );
     }
 }

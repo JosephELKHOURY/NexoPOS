@@ -28,6 +28,7 @@ use App\Services\ProductService;
 use App\Services\ProviderService;
 use App\Services\ReportService;
 use App\Services\ResetService;
+use App\Services\SetupService;
 use App\Services\TaxService;
 use App\Services\TransactionService;
 use App\Services\UnitService;
@@ -36,6 +37,7 @@ use App\Services\UserOptions;
 use App\Services\UsersService;
 use App\Services\Validation;
 use App\Services\WidgetService;
+use Illuminate\Foundation\AliasLoader;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
@@ -52,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
     public function register()
     {
         include_once base_path() . '/app/Services/HelperFunctions.php';
+
+        AliasLoader::getInstance()->alias( 'Hook', Hook::class );
 
         $this->app->singleton( Options::class, function () {
             return new Options;
@@ -70,7 +74,8 @@ class AppServiceProvider extends ServiceProvider
                 app()->make( ProductCategoryService::class ),
                 app()->make( ProductService::class ),
                 app()->make( ProcurementService::class ),
-                app()->make( OrdersService::class )
+                app()->make( OrdersService::class ),
+                app()->make( SetupService::class )
             );
         } );
 
@@ -78,6 +83,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton( DateService::class, function () {
             $options = app()->make( Options::class );
             $timeZone = $options->get( 'ns_datetime_timezone', 'Europe/London' );
+
+            config( ['app.timezone' => $timeZone ] );
+            date_default_timezone_set( $timeZone );
 
             return new DateService( 'now', $timeZone );
         } );
@@ -197,7 +205,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind( TransactionService::class, function ( $app ) {
             return new TransactionService(
-                app()->make( DateService::class )
+                app()->make( DateService::class ),
             );
         } );
 

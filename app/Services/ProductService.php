@@ -731,9 +731,9 @@ class ProductService
                  * available on the group variable, that's why we define
                  * explicitly how everything is saved here.
                  */
-                $unitQuantity->sale_price = $this->currency->define( $group[ 'sale_price_edit' ] )->getRaw();
-                $unitQuantity->sale_price_edit = $this->currency->define( $group[ 'sale_price_edit' ] )->getRaw();
-                $unitQuantity->wholesale_price_edit = $this->currency->define( $group[ 'wholesale_price_edit' ] )->getRaw();
+                $unitQuantity->sale_price = $this->currency->define( $group[ 'sale_price_edit' ] )->toFloat();
+                $unitQuantity->sale_price_edit = $this->currency->define( $group[ 'sale_price_edit' ] )->toFloat();
+                $unitQuantity->wholesale_price_edit = $this->currency->define( $group[ 'wholesale_price_edit' ] )->toFloat();
                 $unitQuantity->preview_url = $group[ 'preview_url' ] ?? '';
                 $unitQuantity->low_quantity = $group[ 'low_quantity' ] ?? 0;
                 $unitQuantity->stock_alert_enabled = $group[ 'stock_alert_enabled' ] ?? false;
@@ -1166,10 +1166,19 @@ class ProductService
          * @param string             $sku
          * @param string             $unit_identifier
          */
-        $product = isset( $product_id ) ? Product::findOrFail( $product_id ) : Product::usingSKU( $sku )->first();
+        $product = isset( $product_id ) ? Product::find( $product_id ) : Product::usingSKU( $sku )->first();
+
+        if ( ! $product instanceof Product ) {
+            throw new NotFoundException( __( 'The product doesn\'t exists.' ) );
+        }
+
         $product_id = $product->id;
         $unit_id = isset( $unit_id ) ? $unit_id : $unit->id;
-        $unit = Unit::findOrFail( $unit_id );
+        $unit = Unit::find( $unit_id );
+
+        if ( ! $unit instanceof Unit ) {
+            throw new NotFoundException( __( 'The unit doesn\'t exists.' ) );
+        }
 
         /**
          * let's check the different
@@ -1756,7 +1765,7 @@ class ProductService
             return 0;
         }
 
-        return $productUnitQuantity->cogs;
+        return $productUnitQuantity->cogs ?: 0;
     }
 
     /**
@@ -2073,7 +2082,7 @@ class ProductService
             unit_price: $lastFromPurchasePrice,
             quantity: $quantity,
             procurementProduct: $procurementProduct,
-            total_price: ns()->currency->define( $lastFromPurchasePrice )->multipliedBy( $quantity )->getRaw(),
+            total_price: ns()->currency->define( $lastFromPurchasePrice )->multipliedBy( $quantity )->toFloat(),
         );
 
         $lastToPurchasePrice = $this->getLastPurchasePrice(
@@ -2088,7 +2097,7 @@ class ProductService
             unit_price: $lastToPurchasePrice,
             quantity: $finalDestinationQuantity,
             procurementProduct: $procurementProduct,
-            total_price: ns()->currency->define( $lastFromPurchasePrice )->multipliedBy( $quantity )->getRaw(),
+            total_price: ns()->currency->define( $lastFromPurchasePrice )->multipliedBy( $quantity )->toFloat(),
         );
 
         return [
@@ -2105,8 +2114,15 @@ class ProductService
 
     /**
      * Get the product using the provided SKU
+     * or throw an exception if the product
+     * doesn't exist.
+     *
+     * @param  string  $sku
+     * @return Product
+     *
+     * @throws NotFoundException
      */
-    public function searchProduct( string $search, int $limit = 5, array $arguments = [] )
+    public function searchProduct( ?string $search, int $limit = 5, array $arguments = [] )
     {
         /**
          * @var Builder $query

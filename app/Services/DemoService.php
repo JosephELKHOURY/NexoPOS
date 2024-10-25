@@ -7,33 +7,22 @@ use App\Models\Product;
 use App\Models\ProductUnitQuantity;
 use App\Models\UnitGroup;
 use Faker\Factory;
-use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class DemoService extends DemoCoreService
 {
-    protected $categoryService;
-
-    protected $productService;
-
-    protected $procurementService;
-
-    protected $orderService;
-
     protected $user;
 
     protected $faker;
 
     public function __construct(
-        ProductCategoryService $categoryService,
-        ProductService $productService,
-        ProcurementService $procurementService,
-        OrdersService $ordersService
+        public ProductCategoryService $categoryService,
+        public ProductService $productService,
+        public ProcurementService $procurementService,
+        public OrdersService $orderService,
+        public SetupService $setupService
     ) {
-        $this->categoryService = $categoryService;
-        $this->productService = $productService;
-        $this->procurementService = $procurementService;
-        $this->orderService = $ordersService;
         $this->faker = ( new Factory )->create();
     }
 
@@ -94,14 +83,22 @@ class DemoService extends DemoCoreService
          */
         extract( $data );
 
+        $this->setupService->createDefaultPayment( Auth::user() );
+        $this->createAccountingAccounts();
         $this->createBaseSettings();
         $this->prepareDefaultUnitSystem();
-        $this->createRegisters();
-        $this->createCustomers();
-        $this->createAccountingAccounts();
-        $this->createProviders();
-        $this->createTaxes();
-        $this->createProducts();
+
+        /**
+         * this applies only when
+         * we're using wipe_plus_grocery demo.
+         */
+        if ( $mode === 'wipe_plus_grocery' ) {
+            $this->createRegisters();
+            $this->createCustomers();
+            $this->createProviders();
+            $this->createTaxes();
+            $this->createProducts();
+        } 
 
         if ( $create_procurements ) {
             $this->performProcurement();

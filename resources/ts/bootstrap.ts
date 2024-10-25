@@ -1,5 +1,5 @@
 import * as Lodash from "lodash";
-import Echo from "laravel-echo";
+import EchoClass from "laravel-echo";
 import Pusher from 'pusher-js';
 import axios from "axios";
 import * as ChartJS from "chart.js";
@@ -24,6 +24,8 @@ import { nsCurrency, nsRawCurrency } from "./filters/currency";
 import { nsAbbreviate } from "./filters/abbreviate";
 import { nsTruncate } from "./filters/truncate";
 import Tax from "./libraries/tax";
+import Print from "./libraries/print";
+import * as math from 'mathjs';
 
 
 declare global {
@@ -41,9 +43,10 @@ declare global {
         popupResolver: any,
         popupCloser: any,
         Pusher:any,
-        Echo: any,
+        EchoClass: any,
         timespan: any,
-        countdown: any
+        countdown: any,
+        nsMath: any
     }
 };
 
@@ -64,9 +67,11 @@ window.popupResolver    =   popupResolver,
 window.popupCloser      =   popupCloser,
 window.countdown        =   countdown;
 window.timespan         =   timespan;
+window.nsMath           =   math
 
 window.Axios.defaults.headers.common['x-requested-with']    =   'XMLHttpRequest';
 window.Axios.defaults.withCredentials                       =   true;
+window.EchoClass        =   EchoClass;
 
 const nsEvent           =   new EventEmitter;
 const nsHttpClient      =   new HttpClient;
@@ -143,6 +148,7 @@ nsHttpClient.defineClient( axios );
 ( window as any ).nsAbbreviate          =   nsAbbreviate;
 ( window as any ).nsRawCurrency         =   nsRawCurrency;
 ( window as any ).nsTruncate            =   nsTruncate;
-( window as any ).nsTax              =   Tax;
+( window as any ).nsTax                 =   Tax;
+( window as any ).PrintService          =   Print;
 
 export { nsSnackBar, nsNotice, nsHttpClient, nsEvent, nsState, nsScreen, nsUrl, nsHooks };

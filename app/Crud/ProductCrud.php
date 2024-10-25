@@ -396,7 +396,7 @@ class ProductCrud extends CrudService
                                     'description' => __( 'What unit group applies to the actual item. This group will apply during the procurement.' ),
                                     'label' => __( 'Unit Group' ),
                                     'validation' => 'required',
-                                    'props' =>  UnitGroupCrud::getFormConfig(),
+                                    'props' => UnitGroupCrud::getFormConfig(),
                                     'component' => 'nsCrudForm',
                                     'value' => $entry->unit_group ?? ( ! $groups->isEmpty() ? $groups->first()->id : '' ),
                                 ], [
@@ -443,7 +443,7 @@ class ProductCrud extends CrudService
                                             $optionLabel = __( 'Unammed Section' );
 
                                             if ( $field->isNotEmpty() ) {
-                                                $option = collect( $field[0][ 'options' ] )->filter( fn( $option ) => $option[ 'value' ] === $field[0][ 'value' ] );
+                                                $option = collect( $field[0][ 'options' ] )->filter( fn( $option ) => $option[ 'value' ] == $field[0][ 'value' ] );
                                                 $optionLabel = $option->first()[ 'label' ];
                                             }
 
@@ -502,9 +502,7 @@ class ProductCrud extends CrudService
                             'fields' => [
                                 [
                                     'type' => 'select',
-                                    'options' => Helper::toJsOptions( TaxGroup::get(), [ 'id', 'name' ], [
-                                        null => __( 'Choose Group' ),
-                                    ] ),
+                                    'options' => Helper::toJsOptions( TaxGroup::get(), [ 'id', 'name' ] ),
                                     'description' => __( 'Select the tax group that applies to the product/variation.' ),
                                     'name' => 'tax_group_id',
                                     'label' => __( 'Tax Group' ),
@@ -678,13 +676,13 @@ class ProductCrud extends CrudService
     public function getColumns(): array
     {
         return [
-            'type' => [
-                'label' => __( 'Type' ),
+            'name' => [
+                'label' => __( 'Name' ),
                 '$direction' => '',
                 '$sort' => false,
             ],
-            'name' => [
-                'label' => __( 'Name' ),
+            'type' => [
+                'label' => __( 'Type' ),
                 '$direction' => '',
                 'width' => '150px',
                 '$sort' => false,

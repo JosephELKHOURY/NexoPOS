@@ -17,7 +17,8 @@ export class Popup {
 
     constructor( config: {
         primarySelector?: string,
-        popupClass?: string
+        popupClass?: string,
+        closeOnOverlayClick?: boolean,
     } = {} ) {
         this.config             =   Object.assign( this.config, config );
         
@@ -34,7 +35,7 @@ export class Popup {
 
     static show( component, params = {}, config = {}) {
         const popup     =   new Popup( config );
-        return popup.open( component, params );
+        return popup.open( component, params, config );
     }
 
     private hash() {
@@ -60,7 +61,9 @@ export class Popup {
                  * In that situation, we don't need to resolve the default.
                  */
             }
-        }
+        } else if ( typeof component.__asyncLoader === 'function' ) {
+            throw new Error( 'Async components are not supported.' );
+        } 
 
         const body                          =   document.querySelector( 'body' ).querySelectorAll( 'div' )[0];
         this.parentWrapper.style.filter     =   'blur(4px)';
@@ -79,12 +82,14 @@ export class Popup {
          */
         let props   =   {};
         
-        if ( component.props ) {
-            props     =   Object.keys( params ).filter( param => component.props.includes( param ) ).reduce( ( props, param ) => {
-                props[ param ]  =   params[ param ];
-                return props;
-            }, {});
+        if ( ! component.props ) {
+            component.props     =   {};
         }
+
+        props     =   Object.keys( params ).filter( param => component.props.includes( param ) ).reduce( ( props, param ) => {
+            props[ param ]  =   params[ param ];
+            return props;
+        }, {});
         
         const popup     =   {
             hash: `popup-${this.hash()}-${this.hash()}`,

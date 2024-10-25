@@ -68,8 +68,10 @@ class TestService
         ], $data );
     }
 
-    public function prepareOrder( Carbon $date, array $orderDetails = [], array $productDetails = [], array $config = [] )
+    public function prepareOrder( Carbon $date = null, array $orderDetails = [], array $productDetails = [], array $config = [] )
     {
+        $date   =   $date ?? now();
+        
         /**
          * @var CurrencyService
          */
@@ -117,12 +119,12 @@ class TestService
          */
         $customer = Customer::get()->random();
 
-        $subtotal = ns()->currency->getRaw( $products->map( function ( $product ) use ( $currency ) {
+        $subtotal = ns()->currency->define( $products->map( function ( $product ) use ( $currency ) {
             return $currency
                 ->define( $product[ 'unit_price' ] )
                 ->multiplyBy( $product[ 'quantity' ] )
-                ->getRaw();
-        } )->sum() );
+                ->toFloat();
+        } )->sum() )->toFloat();
 
         $discount = [
             'type' => $faker->randomElement( [ 'percentage', 'flat' ] ),
@@ -136,7 +138,7 @@ class TestService
             $discount[ 'value' ] = $currency->define( $discount[ 'rate' ] )
                 ->multiplyBy( $subtotal )
                 ->divideBy( 100 )
-                ->getRaw();
+                ->toFloat();
         } else {
             $discount[ 'value' ] = 2;
             $discount[ 'rate' ] = 0;
@@ -180,7 +182,7 @@ class TestService
                     'identifier' => 'cash-payment',
                     'value' => $currency->define( $subtotal )
                         ->additionateBy( $shippingFees )
-                        ->getRaw(),
+                        ->toFloat(),
                 ],
             ];
         }
@@ -237,7 +239,7 @@ class TestService
                     return false;
                 } )->filter();
             } )->flatten()->map( function ( $data ) use ( $taxService, $taxType, $taxGroup, $margin, $faker ) {
-                $quantity = $faker->numberBetween( 100, 999 );
+                $quantity = $faker->numberBetween( 1000, 9999 );
 
                 return [
                     'product_id' => $data->product->id,

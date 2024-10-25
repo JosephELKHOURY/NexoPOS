@@ -2,85 +2,22 @@
 
 use App\Classes\FormInput;
 use App\Crud\TransactionAccountCrud;
-use App\Models\TransactionAccount;
-use App\Services\Helper;
-
-$transactions = TransactionAccount::get();
 
 return [
-    'label' => __( 'General' ),
-    'fields' => [
-        FormInput::searchSelect(
-            label: __( 'Procurement Cash Flow Account' ),
-            name: 'ns_procurement_cashflow_account',
-            value: ns()->option->get( 'ns_procurement_cashflow_account' ),
-            description: __( 'Every procurement will be added to the selected transaction account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Sale Cash Flow Account' ),
-            name: 'ns_sales_cashflow_account',
-            value: ns()->option->get( 'ns_sales_cashflow_account' ),
-            description: __( 'Every sales will be added to the selected transaction account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Customer Credit Account (crediting)' ),
-            name: 'ns_customer_crediting_cashflow_account',
-            value: ns()->option->get( 'ns_customer_crediting_cashflow_account' ),
-            description: __( 'Every customer credit will be added to the selected transaction account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Customer Credit Account (debitting)' ),
-            name: 'ns_customer_debitting_cashflow_account',
-            value: ns()->option->get( 'ns_customer_debitting_cashflow_account' ),
-            description: __( 'Every customer credit removed will be added to the selected transaction account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Sales Refunds Account' ),
-            name: 'ns_sales_refunds_account',
-            value: ns()->option->get( 'ns_sales_refunds_account' ),
-            description: __( 'Sales refunds will be attached to this transaction account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Stock Return Account (Spoiled Items)' ),
-            name: 'ns_stock_return_spoiled_account',
-            value: ns()->option->get( 'ns_stock_return_spoiled_account' ),
-            description: __( 'Stock return for spoiled items will be attached to this account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Disbursement (cash register)' ),
-            name: 'ns_disbursement_cash_register_account',
-            value: ns()->option->get( 'ns_disbursement_cash_register_account' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            description: __( 'Transaction account for all cash disbursement.' ),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-        FormInput::searchSelect(
-            label: __( 'Liabilities' ),
-            name: 'ns_liabilities_account',
-            value: ns()->option->get( 'ns_liabilities_account' ),
-            description: __( 'Transaction account for all liabilities.' ),
-            component: 'nsCrudForm',
-            props: TransactionAccountCrud::getFormConfig(),
-            options: Helper::toJsOptions( $transactions, [ 'id', 'name' ] ),
-        ),
-    ],
+    FormInput::multiselect(
+        label: __( 'Expense Accounts' ),
+        name: 'ns_accounting_expenses_accounts',
+        value: ns()->option->get( 'ns_accounting_expenses_accounts' ),
+        description: __( 'Assign accounts that are likely to be used for creating direct, scheduled or recurring expenses.' ),
+        options: $accounts[ 'expenses' ],
+    ),
+    FormInput::searchSelect(
+        label: __( 'Paid Expense Offset' ),
+        name: 'ns_accounting_default_paid_expense_offset_account',
+        value: ns()->option->get( 'ns_accounting_default_paid_expense_offset_account' ),
+        description: __( 'Assign the default account to be used as an offset account for paid expenses transactions.' ),
+        props: TransactionAccountCrud::getFormConfig(),
+        component: 'nsCrudForm',
+        options: $accounts[ 'assets' ],
+    )
 ];

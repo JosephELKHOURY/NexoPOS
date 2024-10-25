@@ -73,12 +73,12 @@ Do you plan to contribute? That's awesome. We don't have that much developer on 
 
 **To install Node.js dependencies**
 ```
-npm run install
+npm install
 ```
 
 **To watch the Vue compoment changes (Vue.js)**
 ```
-npm run watch
+npm run dev
 ```
 
 **To watch the project changes (TailwindCSS)**
@@ -92,6 +92,12 @@ This will build the JavaScript file and CSS files.
 ```
 npm run prod
 ```
+
+## Star History
+Thank you for all your support over the years :).
+
+[![Star History Chart](https://api.star-history.com/svg?repos=blair2004/NexoPOS&type=Date)](https://star-history.com/#blair2004/NexoPOS&Date)
+
 
 ## Screenshots
 The branch 4.7.x introduce the "Dark Mode" which will make working continuously with NexoPOS easier without hurting sight.

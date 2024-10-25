@@ -30,6 +30,7 @@ class AuthenticationTest extends TestCase
      */
     public function testCanSeeRegistrationPage()
     {
+        ns()->option->set( 'ns_registration_enabled', 'yes' );
         $response = $this->get( '/sign-up' );
         $response->assertStatus( 200 );
     }
@@ -43,6 +44,7 @@ class AuthenticationTest extends TestCase
      */
     public function testCanSeeRecovery()
     {
+        ns()->option->set( 'ns_recovery_enabled', 'yes' );
         $response = $this->get( '/sign-up' );
         $response->assertStatus( 200 );
     }
@@ -115,6 +117,7 @@ class AuthenticationTest extends TestCase
      */
     public function testCanSeePasswordLostForm()
     {
+        ns()->option->set( 'ns_recovery_enabled', 'yes' );
         $response = $this->get( '/password-lost' );
         $response->assertStatus( 200 );
     }
@@ -128,6 +131,8 @@ class AuthenticationTest extends TestCase
      */
     public function testCanSeeNewPasswordForm()
     {
+        ns()->option->set( 'ns_recovery_enabled', 'yes' );
+
         $user = User::first();
         $user->active = true;
         $user->activation_token = Str::random( 10 );
@@ -138,7 +143,7 @@ class AuthenticationTest extends TestCase
 
         $response = $this->get( $path );
         $response->assertSee( 'The token has expired. Please request a new activation token.' );
-        $response->assertStatus( 200 );
+        $response->assertStatus( 403 );
     }
 
     public function generateUsername( $minLength = 10 )
@@ -237,10 +242,17 @@ class AuthenticationTest extends TestCase
          */
         ns()->option->set( 'ns_registration_enabled', 'yes' );
 
-        $signUpDetails  =   [
+        $signUpDetails = [
             'username' => $this->fakeUsername(),
             'password' => $password,
             'password_confirm' => $password . 'not-the-same',
+            'email' => $this->fakeEmail(),
+        ];
+
+        $signUpDetails = [
+            'username' => $this->fakeUsername(),
+            'password' => 'k%9*~aJ+,<%(z6',
+            'password_confirm' => 'k%9*~aJ+,<%(z6' . 'not-the-same',
             'email' => $this->fakeEmail(),
         ];
 
