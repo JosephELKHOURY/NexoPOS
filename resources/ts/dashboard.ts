@@ -81,6 +81,6 @@ export class Dashboard {
  * This ensures other modules has time to interact with the
  * httpClient object to change request behavior.
  */
-//document.addEventListener( 'DOMContentLoaded', () => {
+document.addEventListener( 'DOMContentLoaded', () => {
     ( window as any ).Dashboard     =   new Dashboard;
-//});
+});
