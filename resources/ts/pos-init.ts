@@ -50,12 +50,6 @@ const nsPosCashRegister         = (<any>window).nsPosCashRegister = defineAsyncC
 
 declare const systemOptions;
 declare const systemUrls;
-
-const nsPosDiscountPopup      = (<any>window).nsPosDiscountPopup = defineAsyncComponent( () => import('./popups/ns-pos-' + 'discount' + '-popup.vue' ) );
-const BankPayment      = (<any>window).BankPayment = defineAsyncComponent( () => import('./pages/dashboard/pos/payments/bank-payment.vue' ) );
-const AccountPayment      = (<any>window).AccountPayment = defineAsyncComponent( () => import('./pages/dashboard/pos/payments/account-payment.vue' ) );
-const nsPosLoadingPopupVue         = (<any>window).nsPosLoadingPopupVue = defineAsyncComponent( () => import('./popups/ns-pos-' + 'loading' + '-popup.vue' ) );
-
 declare const nsEvent;
 
 export class POS {
