@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Classes\Hook;
-use App\Events\OrderProductAfterComputeTaxEvent;
 use App\Exceptions\NotFoundException;
 use App\Models\OrderProduct;
 use App\Models\Product;
@@ -421,7 +419,7 @@ class TaxService
      * We might not need to perform this if
      * the product already comes with defined tax.
      */
-    public function  computeOrderProductTaxes( OrderProduct $orderProduct, array $productArray ): OrderProduct
+    public function computeOrderProductTaxes( OrderProduct $orderProduct, array $productArray ): OrderProduct
     {
         /**
          * let's load the original product with the tax group
@@ -440,35 +438,38 @@ class TaxService
                 value: $orderProduct->filterAttribute( 'unit_price', $productArray ),
                 rate: $orderProduct->discount_percentage,
             );
-        } 
+        }
 
         /**
          * Let's now compute the taxes
          */
         $taxGroup = TaxGroup::find( $orderProduct->tax_group_id );
 
-        $type = $orderProduct->product instanceof Product ? $orderProduct->product->tax_type : ns()->option->get( 'ns_pos_tax_type' );
+        $type = $orderProduct->tax_type ?: ns()->option->get( 'ns_pos_tax_type' );
 
         /**
          * if the tax group is not defined,
          * then probably it's not assigned to the product.
          */
         if ( $taxGroup instanceof TaxGroup ) {
-            if ( $type === 'exclusive' ) {
+            if ( ! isset( $productArray[ 'price_with_tax' ] ) ) {
                 $orderProduct->price_with_tax = $this->getPriceWithTaxUsingGroup(
-                    type: 'exclusive',
-                    price: $orderProduct->filterAttribute( 'unit_price', $productArray ) - $discount,
+                    type: $type,
+                    price: $orderProduct->filterAttribute( 'price_without_tax', $productArray ),
                     group: $taxGroup
                 );
-                $orderProduct->price_without_tax = $orderProduct->filterAttribute( 'unit_price', $productArray ) - $discount;
             } else {
+                $orderProduct->price_with_tax = $productArray[ 'price_with_tax' ];
+            }
+
+            if ( ! isset( $productArray[ 'price_without_tax' ] ) ) {
                 $orderProduct->price_without_tax = $this->getPriceWithoutTaxUsingGroup(
-                    type: 'inclusive',
-                    price: $orderProduct->filterAttribute( 'unit_price', $productArray ) - $discount,
+                    type: $type,
+                    price: $orderProduct->filterAttribute( 'price_with_tax', $productArray ),
                     group: $taxGroup
                 );
-
-                $orderProduct->price_with_tax = $orderProduct->filterAttribute( 'unit_price', $productArray ) - $discount;
+            } else {
+                $orderProduct->price_without_tax = $productArray[ 'price_without_tax' ];
             }
 
             $orderProduct->tax_value = ( $orderProduct->price_with_tax - $orderProduct->price_without_tax ) * $orderProduct->quantity;

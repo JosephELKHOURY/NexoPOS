@@ -15,7 +15,7 @@ class CrudTest extends TestCase
      *
      * @return void
      */
-    public function testCrudComponents()
+    public function test_crud_components()
     {
         $this->attemptAuthenticate();
 
@@ -37,7 +37,7 @@ class CrudTest extends TestCase
                     'verb' => 'get',
                     'permissions' => [ 'read' ],
                 ], [
-                    'slug' => 'crud/{namespace}/config/{id?}',
+                    'slug' => 'crud/{namespace}/config',
                     'verb' => 'get',
                     'permissions' => [ 'read' ],
                 ], [

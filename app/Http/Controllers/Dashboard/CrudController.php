@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @todo review for api-server
  */
@@ -63,8 +64,6 @@ class CrudController extends DashboardController
                 return $response;
             }
         }
-
-        $resource->handleDependencyForDeletion( $model );
 
         $model->delete();
 
@@ -286,7 +285,7 @@ class CrudController extends DashboardController
     {
         $crudClass = Hook::filter( 'ns-crud-resource', $namespace );
         $resource = new $crudClass( compact( 'namespace', 'id' ) );
-        
+
         if ( $resource instanceof CrudService ) {
             return $resource->getFormConfig(
                 entry: $resource->getModel()::find( $id )
@@ -410,7 +409,7 @@ class CrudController extends DashboardController
         $writer->save( $fileName );
 
         /**
-         * We'll hide the asset URL behind random lettes
+         * We'll hide the asset URL behind random letters
          */
         $hash = Str::random( 20 );
 

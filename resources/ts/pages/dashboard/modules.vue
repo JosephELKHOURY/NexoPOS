@@ -1,6 +1,6 @@
 <template>
     <div id="module-wrapper" class="flex-auto flex flex-col pb-4">
-        <div class="flex flex-col md:flex-row md:justify-between md:items-center">
+        <div class="flex flex-col lg:flex-row md:justify-between md:items-center">
             <div class="flex flex-col md:flex-row md:justify-between md:items-center -mx-2">
                 <span class="px-2">
                     <div class="ns-button mb-2">
@@ -25,14 +25,15 @@
                 </div>
             </div>
             <div class="header-tabs flex -mx-4 flex-wrap">
-                <div class="px-4 text-xs text-blue-500 font-semibold hover:underline"><a href="#">{{ __( 'Enabled' ) }}({{ total_enabled }})</a></div>
-                <div class="px-4 text-xs text-blue-500 font-semibold hover:underline"><a href="#">{{ __( 'Disabled' ) }} ({{ total_disabled }})</a></div>
+                <div class="px-4 text-xs text-blue-500 font-semibold hover:underline"><a href="javascript:void(0)" @click="reloadModules( 'enabled' )">{{ __( 'Enabled' ) }}({{ total_enabled }})</a></div>
+                <div class="px-4 text-xs text-blue-500 font-semibold hover:underline"><a href="javascript:void(0)" @click="reloadModules( 'disabled' )">{{ __( 'Disabled' ) }} ({{ total_disabled }})</a></div>
+                <div class="px-4 text-xs text-blue-500 font-semibold hover:underline"><a href="javascript:void(0)" @click="reloadModules( 'invalid' )">{{ __( 'Invalid' ) }} ({{ total_invalid }})</a></div>
             </div>
         </div>
         <div class="module-section flex-auto flex flex-wrap -mx-4">
             <div v-if="noModules && searchText.length === 0" class="p-4 flex-auto flex">
-                <div class="flex h-full flex-auto border-dashed border-2 border-box-edge bg-surface justify-center items-center">
-                    <h2 class="font-bold text-xl text-primary text-center">{{ noModuleMessage }}</h2>
+                <div class="flex border-dashed border w-full border-primary h-32 flex-auto justify-center items-center">
+                    <div class="text-primary">{{ noModuleMessage }}</div>
                 </div>
             </div>
             <div v-if="noModules && searchText.length > 0" class="p-4 flex-auto flex">
@@ -44,18 +45,23 @@
                 <div class="ns-modules rounded shadow overflow-hidden ns-box">
                     <div class="module-head h-32 p-2">
                         <h3 class="font-semibold text-lg">{{ moduleObject[ 'name' ] }}</h3>
-                        <p class="text-xs flex justify-between">
-                            <span>{{ moduleObject[ 'author' ] }}</span>
+                        <div class="text-xs flex justify-between">
+                            <div class="flex justify-between">
+                                <span>{{ moduleObject[ 'author' ] }}</span>
+                                <span class="text-error-tertiary mx-2" v-if="moduleObject[ 'psr-4-compliance' ] === false">
+                                    &mdash; {{ __( 'not PSR-4 Compliant' ) }}
+                                </span>
+                            </div>
                             <strong>v{{ moduleObject[ 'version' ] }}</strong>
-                        </p>
+                        </div>
                         <p class="py-2 text-sm">
                             {{ truncateText( moduleObject.description, 20, '...' ) }}
                             <a class="text-xs text-info-tertiary hover:underline" @click="openPopupDetails( moduleObject )" v-if="countWords( moduleObject.description ) > 20" href="javascript:void(0)">[{{  __( 'Read More' ) }}]</a>
                         </p>
                     </div>
                     <div class="ns-box-footer border-t p-2 flex justify-between">
-                        <ns-button :disabled="moduleObject.autoloaded" v-if="! moduleObject.enabled" @click="enableModule( moduleObject )" type="info">{{ __( 'Enable' ) }}</ns-button>
-                        <ns-button :disabled="moduleObject.autoloaded" v-if="moduleObject.enabled" @click="disableModule( moduleObject )" type="success">{{ __( 'Disable' ) }}</ns-button>
+                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="! moduleObject.enabled" @click="enableModule( moduleObject )" type="info">{{ __( 'Enable' ) }}</ns-button>
+                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="moduleObject.enabled" @click="disableModule( moduleObject )" type="success">{{ __( 'Disable' ) }}</ns-button>
                         <div class="flex -mx-1">
                             <div class="px-1 flex -mx-1">
                                 <div class="px-1 flex">
@@ -91,6 +97,7 @@ export default {
             searchPlaceholder: __( 'Press "/" to search modules' ),
             total_enabled : 0,
             total_disabled : 0,
+            total_invalid: 0,
             searchText: '',
             searchTimeOut: null
         }
@@ -141,7 +148,7 @@ export default {
             return this.rawModules;
         },
         noModuleMessage() {
-            return __( `No module has been uploaded yet.` );
+            return __( `There is nothing to display here.` );
         }
     },
     methods: {
@@ -169,6 +176,10 @@ export default {
 
         countWords( text ) {
             return text.split( ' ' ).length;
+        },
+
+        reloadModules( segment ) {
+            return this.loadModules( this.url + '/' + segment ).subscribe();
         },
 
         refreshModules() {
@@ -215,13 +226,14 @@ export default {
                     }
                 });
         },
-        loadModules() {
-            return nsHttpClient.get( this.url )
+        loadModules( url ) {
+            return nsHttpClient.get( url || this.url )
                 .pipe(
                     map( result => {                        
-                        this.rawModules            =   result.modules;
+                        this.rawModules         =   result.modules;
                         this.total_enabled      =   result.total_enabled;
                         this.total_disabled     =   result.total_disabled;
+                        this.total_invalid      =   result.total_invalid;
                         return result;
                     })
                 );

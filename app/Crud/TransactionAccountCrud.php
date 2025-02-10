@@ -7,11 +7,9 @@ use App\Classes\CrudForm;
 use App\Classes\CrudTable;
 use App\Classes\FormInput;
 use App\Exceptions\NotAllowedException;
-use App\Models\Transaction;
 use App\Models\TransactionAccount;
 use App\Services\CrudEntry;
 use App\Services\CrudService;
-use App\Services\Helper;
 use App\Services\UsersService;
 use Illuminate\Http\Request;
 use TorMorten\Eventy\Facades\Events as Hook;
@@ -64,7 +62,7 @@ class TransactionAccountCrud extends CrudService
         'nsta' => [
             'name',
         ],
-        'subaccount'    =>  [
+        'subaccount' => [
             'name',
         ],
         'nexopos_users' => [
@@ -154,9 +152,9 @@ class TransactionAccountCrud extends CrudService
     public function getForm( $entry = null )
     {
         $options = collect( config( 'accounting.accounts' ) )->map( fn( $account, $key ) => [
-            'label' => $account[ 'label' ](),
+            'label' => $account[ 'label' ],
             'value' => $key,
-        ])->values();
+        ] )->values();
 
         return CrudForm::form(
             main: FormInput::text(
@@ -189,7 +187,7 @@ class TransactionAccountCrud extends CrudService
                                 url: ns()->route( 'ns.transactions-account.category-identifier' ),
                                 watch: 'category_identifier',
                                 data: [
-                                    'exclude' => $entry->id ?? 0
+                                    'exclude' => $entry->id ?? 0,
                                 ]
                             )
                         ),
@@ -229,9 +227,9 @@ class TransactionAccountCrud extends CrudService
 
     public function checkThreeLevel( $inputs )
     {
-        $subAccount     =   TransactionAccount::find( $inputs[ 'sub_category_id' ] );
+        $subAccount = TransactionAccount::find( $inputs[ 'sub_category_id' ] );
 
-        if ( $subAccount instanceof TransactionAccount && ( int ) $subAccount->sub_category_id !== 0 ) {
+        if ( $subAccount instanceof TransactionAccount && (int) $subAccount->sub_category_id !== 0 ) {
             throw new NotAllowedException( __( 'Three level of accounts is not allowed.' ) );
         }
     }

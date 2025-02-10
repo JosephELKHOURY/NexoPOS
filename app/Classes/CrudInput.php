@@ -4,12 +4,12 @@ namespace App\Classes;
 
 class CrudInput
 {
-    public static function text( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $type = 'text' )
+    public static function text( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $type = 'text', $errors = [] )
     {
-        return compact( 'label', 'name', 'value', 'validation', 'description', 'disabled', 'type' );
+        return compact( 'label', 'name', 'value', 'validation', 'description', 'disabled', 'type', 'errors' );
     }
 
-    public static function password( $label, $name, $validation = '', $description = '', $disabled = false )
+    public static function password( $label, $name, $value = '', $validation = '', $description = '', $disabled = false )
     {
         return self::text(
             label: $label,
@@ -17,7 +17,8 @@ class CrudInput
             validation: $validation,
             description: $description,
             disabled: $disabled,
-            type: 'password'
+            type: 'password',
+            value: $value
         );
     }
 
@@ -34,7 +35,7 @@ class CrudInput
         );
     }
 
-    public static function number( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $type = 'number' )
+    public static function number( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $errors = [] )
     {
         return self::text(
             label: $label,
@@ -43,7 +44,8 @@ class CrudInput
             description: $description,
             disabled: $disabled,
             type: 'number',
-            value: $value
+            value: $value,
+            errors: $errors
         );
     }
 
@@ -60,7 +62,7 @@ class CrudInput
         );
     }
 
-    public static function hidden( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $type = 'hidden' )
+    public static function hidden( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $errors = [] )
     {
         return self::text(
             label: $label,
@@ -73,7 +75,7 @@ class CrudInput
         );
     }
 
-    public static function date( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $type = 'date' )
+    public static function date( $label, $name, $value = '', $validation = '', $description = '', $disabled = false )
     {
         return self::text(
             label: $label,
@@ -86,12 +88,12 @@ class CrudInput
         );
     }
 
-    public static function select( $label, $name, $options, $value = '', $validation = '', $description = '', $disabled = false, $type = 'select', $component = '', $props = [], $refresh = false )
+    public static function select( $label, $name, $options, $value = '', $validation = '', $description = '', $disabled = false, $type = 'select', $component = '', $props = [], $refresh = false, $errors = [] )
     {
-        return compact( 'label', 'name', 'validation', 'options', 'value', 'description', 'disabled', 'type', 'component', 'props', 'refresh' );
+        return compact( 'label', 'name', 'validation', 'options', 'value', 'description', 'disabled', 'type', 'component', 'props', 'refresh', 'errors' );
     }
 
-    public static function searchSelect( $label, $name, $value = '', $options = [], $validation = '', $description = '', $disabled = false, $component = '', $props = [], $refresh = false )
+    public static function searchSelect( $label, $name, $value = '', $options = [], $validation = '', $description = '', $disabled = false, $component = '', $props = [], $refresh = false, $errors = [] )
     {
         return self::select(
             label: $label,
@@ -104,7 +106,8 @@ class CrudInput
             component: $component,
             props: $props,
             disabled: $disabled,
-            refresh: $refresh
+            refresh: $refresh,
+            errors: $errors
         );
     }
 
@@ -181,7 +184,7 @@ class CrudInput
         );
     }
 
-    public static function switch( $label, $name, $options, $value = '', $validation = '', $description = '', $disabled = false )
+    public static function switch( $label, $name, $options, $value = '', $validation = '', $description = '', $disabled = false, $errors = [] )
     {
         return self::select(
             label: $label,
@@ -191,11 +194,12 @@ class CrudInput
             value: $value,
             description: $description,
             disabled: $disabled,
-            type: 'switch'
+            type: 'switch',
+            errors: $errors
         );
     }
 
-    public static function media( $label, $name, $value = '', $validation = '', $description = '', $disabled = false )
+    public static function media( $label, $name, $value = '', $validation = '', $description = '', $disabled = false, $errors = [] )
     {
         return self::text(
             label: $label,
@@ -204,7 +208,8 @@ class CrudInput
             description: $description,
             disabled: $disabled,
             type: 'media',
-            value: $value
+            value: $value,
+            errors: $errors
         );
     }
 
@@ -251,7 +256,7 @@ class CrudInput
     {
         return [
             'label' => $label,
-            'component' => $component
+            'component' => $component,
         ];
     }
 }

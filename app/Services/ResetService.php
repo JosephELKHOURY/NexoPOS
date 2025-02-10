@@ -89,19 +89,26 @@ class ResetService
         }
 
         /**
+         * @var CustomerService $customerService
+         */
+        $customerService = app()->make( CustomerService::class );
+
+        /**
          * Customers stills needs to be cleared
          * so we'll remove them manually.
          */
-        Customer::get()->each( fn( $customer ) => app()->make( CustomerService::class )->delete( $customer ) );
+        Customer::get()->each( fn( $customer ) => $customerService->delete( $customer ) );
 
         /**
          * We'll delete all options where key starts with "ns_"
          * as this is a reserved key for the system, we can safely delete it
          * but excluding some options provided in an array
          */
-        Option::where( 'key', 'LIKE', 'ns_%' )
-            ->where( 'key', 'NOT LIKE', 'ns_pa_%' )
-            ->where( 'key', 'NOT LIKE', 'ns_gastro_%' )
+        Option::where( 'key', 'LIKE', 'ns\_%' )
+            ->where( 'key', 'NOT LIKE', 'ns\_pa_%' )
+            ->where( 'key', 'NOT LIKE', 'ns\_gastro_%' )
+            ->where( 'key', 'NOT LIKE', 'ns\_sms_%' )
+            ->where( 'key', 'NOT LIKE', 'ns\_email_%' )
             ->where( 'key', 'NOT LIKE', 'ns-stocktransfers%' )
             ->whereNotIn( 'key', [
                 'ns_store_name',

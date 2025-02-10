@@ -12,8 +12,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Requests\ModuleUploadRequest;
 use App\Services\DateService;
 use App\Services\ModulesService;
-use Exception;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\View;
@@ -69,12 +67,16 @@ class ModulesController extends DashboardController
             case 'disabled':
                 $list = $this->modules->getDisabled();
                 break;
+            case 'invalid':
+                $list = $this->modules->getInvalid();
+                break;
         }
 
         return [
             'modules' => $list,
             'total_enabled' => count( $this->modules->getEnabled() ),
             'total_disabled' => count( $this->modules->getDisabled() ),
+            'total_invalid' => count( $this->modules->getInvalid() ),
         ];
     }
 
@@ -122,16 +124,21 @@ class ModulesController extends DashboardController
     {
         $result = $this->modules->upload( $request->file( 'module' ) );
 
-        /**
-         * if the module upload was successful
-         */
-        if ( $result[ 'status' ] === 'success' ) {
-            return redirect( ns()->route( 'ns.dashboard.modules-list' ) )->with( $result );
+        if ( $request->acceptsJson() ) {
+            return response()->json( $result );
         } else {
-            $validator = Validator::make( $request->all(), [] );
-            $validator->errors()->add( 'module', $result[ 'message' ] );
+            /**
+             * if the module upload was successful
+             */
+            if ( $result[ 'status' ] === 'success' ) {
+                return redirect( ns()->route( 'ns.dashboard.modules-list' ) )->with( $result );
+            } else {
+                $validator = Validator::make( $request->all(), [] );
+                $validator->errors()->add( 'module', $result[ 'message' ] );
 
-            return redirect( ns()->route( 'ns.dashboard.modules-upload' ) )->withErrors( $validator );
+                return redirect( ns()->route( 'ns.dashboard.modules-upload' ) )->withErrors( $validator );
+            }
         }
+
     }
 }

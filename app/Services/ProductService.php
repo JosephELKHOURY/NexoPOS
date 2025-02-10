@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Classes\Hook;
 use App\Events\ProductAfterCreatedEvent;
 use App\Events\ProductAfterStockAdjustmentEvent;
 use App\Events\ProductAfterUpdatedEvent;
@@ -258,8 +259,21 @@ class ProductService
             ) );
         }
 
+        if ( empty( $data[ 'barcode_type' ] ) ) {
+            $data[ 'barcode_type' ] = 'ean8';
+        }
+
         if ( empty( $data[ 'barcode' ] ) ) {
             $data[ 'barcode' ] = $this->barcodeService->generateRandomBarcode( $data[ 'barcode_type' ] );
+        }
+
+        /**
+         * We'll generate an SKU automatically
+         * if it's not provided by the form.
+         */
+        if ( empty( $data[ 'sku' ] ) ) {
+            $category = ProductCategory::find( $data[ 'category_id' ] );
+            $data[ 'sku' ] = Str::slug( $category->name ) . '--' . Str::slug( $data[ 'name' ] ) . '--' . Str::random( 5 );
         }
 
         /**
@@ -271,15 +285,6 @@ class ProductService
                 __( 'The provided SKU "%s" is already in use.' ),
                 $data[ 'sku' ]
             ) );
-        }
-
-        /**
-         * We'll generate an SKU automatically
-         * if it's not provided by the form.
-         */
-        if ( empty( $data[ 'sku' ] ) ) {
-            $category = ProductCategory::find( $data[ 'category_id' ] );
-            $data[ 'sku' ] = Str::slug( $category->name ) . '--' . Str::slug( $data[ 'name' ] ) . '--' . Str::random( 5 );
         }
 
         $product = new Product;
@@ -321,7 +326,7 @@ class ProductService
             $this->saveSubItems( $product, $fields[ 'groups' ] ?? [] );
         }
 
-        $editUrl = ns()->route( 'ns.products-edit', [ 'product' => $product->id ] );
+        $editUrl = ns()->route( 'ns.dashboard.products.edit', [ 'product' => $product->id ] );
 
         event( new ProductAfterCreatedEvent( $product ) );
 
@@ -492,7 +497,7 @@ class ProductService
             $this->saveSubItems( $product, $fields[ 'groups' ] ?? [] );
         }
 
-        $editUrl = ns()->route( 'ns.products-edit', [ 'product' => $product->id ] );
+        $editUrl = ns()->route( 'ns.dashboard.products.edit', [ 'product' => $product->id ] );
 
         event( new ProductAfterUpdatedEvent( $product ) );
 
@@ -523,7 +528,7 @@ class ProductService
                 $subitem->sale_price = $item[ 'sale_price' ];
                 $subitem->quantity = $item[ 'quantity' ];
                 $subitem->total_price = $item[ 'total_price' ] ?? (float) $item[ 'sale_price' ] * (float) $item[ 'quantity' ];
-                $subitem->author = Auth::id();
+                $subitem->author = $product->author;
                 $subitem->save();
             } else {
                 $subitem = ProductSubItem::find( $item[ 'id' ] );
@@ -539,7 +544,7 @@ class ProductService
                 $subitem->sale_price = $item[ 'sale_price' ];
                 $subitem->quantity = $item[ 'quantity' ];
                 $subitem->total_price = $item[ 'total_price' ] ?? (float) $item[ 'sale_price' ] * (float) $item[ 'quantity' ];
-                $subitem->author = Auth::id();
+                $subitem->author = $product->author;
                 $subitem->save();
             }
 
@@ -750,6 +755,14 @@ class ProductService
                     $fields[ 'tax_group_id' ] ?? null,
                     $fields[ 'tax_type' ] ?? null
                 );
+
+                /**
+                 * if some other fields should be retreived from the $group variable
+                 * we can defined that on the array below
+                 */
+                foreach ( Hook::filter( 'ns-products-units-quantities-fields-names', [] ) as $field ) {
+                    $unitQuantity->$field = $group[ $field ] ?? null;
+                }
 
                 /**
                  * save custom barcode for the created unit quantity
@@ -1096,7 +1109,7 @@ class ProductService
             } );
     }
 
-    public function getUnitQuantity( $product_id, $unit_id )
+    public function getUnitQuantity( $product_id, $unit_id ): ?ProductUnitQuantity
     {
         return ProductUnitQuantity::withProduct( $product_id )
             ->withUnit( $unit_id )
@@ -1165,6 +1178,7 @@ class ProductService
          * @param float              $quantity
          * @param string             $sku
          * @param string             $unit_identifier
+         * @param int                $author
          */
         $product = isset( $product_id ) ? Product::find( $product_id ) : Product::usingSKU( $sku )->first();
 
@@ -1185,26 +1199,11 @@ class ProductService
          * actions which are allowed on the current request
          */
         if ( ! in_array( $action, [
-            ProductHistory::ACTION_DEFECTIVE,
-            ProductHistory::ACTION_DELETED,
-            ProductHistory::ACTION_STOCKED,
-            ProductHistory::ACTION_REMOVED,
-            ProductHistory::ACTION_ADDED,
-            ProductHistory::ACTION_RETURNED,
-            ProductHistory::ACTION_SOLD,
-            ProductHistory::ACTION_TRANSFER_IN,
-            ProductHistory::ACTION_TRANSFER_REJECTED,
-            ProductHistory::ACTION_TRANSFER_CANCELED,
-            ProductHistory::ACTION_TRANSFER_OUT,
-            ProductHistory::ACTION_LOST,
-            ProductHistory::ACTION_VOID_RETURN,
-            ProductHistory::ACTION_ADJUSTMENT_RETURN,
-            ProductHistory::ACTION_ADJUSTMENT_SALE,
-            ProductHistory::ACTION_CONVERT_IN,
-            ProductHistory::ACTION_CONVERT_OUT,
+            ...$this->getIncreaseActions(),
+            ...$this->getReduceActions(),
             ProductHistory::ACTION_SET,
         ] ) ) {
-            throw new NotAllowedException( __( 'The action is not an allowed operation.' ) );
+            throw new NotAllowedException( sprintf( __( 'The "%s" action is not an allowed operation.' ), $action ) );
         }
 
         /**
@@ -1227,7 +1226,8 @@ class ProductService
                     orderProductQuantity: $quantity,
                     product: $product,
                     orderProduct: isset( $orderProduct ) ? $orderProduct : null,
-                    parentUnit: $unit
+                    parentUnit: $unit,
+                    author: $author ?? 0,
                 );
             } else {
                 return $this->handleStockAdjustmentRegularProducts(
@@ -1238,7 +1238,8 @@ class ProductService
                     total_price: $total_price,
                     unit_price: $unit_price,
                     orderProduct: isset( $orderProduct ) ? $orderProduct : null,
-                    procurementProduct: isset( $procurementProduct ) ? $procurementProduct : null
+                    procurementProduct: isset( $procurementProduct ) ? $procurementProduct : null,
+                    author: $author ?? 0,
                 );
             }
         }
@@ -1258,6 +1259,7 @@ class ProductService
         $orderProductQuantity,
         Product $product,
         Unit $parentUnit,
+        int $author = 0,
         ?OrderProduct $orderProduct = null ): EloquentCollection
     {
         $product->load( 'sub_items' );
@@ -1266,7 +1268,7 @@ class ProductService
             throw new Exception( __( 'Adjusting grouped product inventory must result of a create, update, delete sale operation.' ) );
         }
 
-        $products = $product->sub_items->map( function ( ProductSubItem $subItem ) use ( $action, $orderProductQuantity, $parentUnit, $orderProduct ) {
+        $products = $product->sub_items->map( function ( ProductSubItem $subItem ) use ( $author, $action, $orderProductQuantity, $parentUnit, $orderProduct ) {
             $finalQuantity = $this->computeSubItemQuantity(
                 subItemQuantity: $subItem->quantity,
                 parentUnit: $parentUnit,
@@ -1278,7 +1280,7 @@ class ProductService
              */
             $oldQuantity = $this->getQuantity( $subItem->product_id, $subItem->unit_id );
 
-            if ( in_array( $action, ProductHistory::STOCK_REDUCE ) ) {
+            if ( in_array( $action, $this->getReduceActions() ) ) {
                 $this->preventNegativity(
                     oldQuantity: $oldQuantity,
                     quantity: $finalQuantity
@@ -1295,7 +1297,7 @@ class ProductService
                     quantity: $finalQuantity,
                     oldQuantity: $oldQuantity
                 );
-            } elseif ( in_array( $action, ProductHistory::STOCK_INCREASE ) ) {
+            } elseif ( in_array( $action, $this->getIncreaseActions() ) ) {
                 /**
                  * @var string status
                  * @var string message
@@ -1316,6 +1318,7 @@ class ProductService
             return $this->recordStockHistory(
                 product_id: $subItem->product_id,
                 action: $action,
+                author: $author,
                 unit_id: $subItem->unit_id,
                 unit_price: $subItem->sale_price,
                 quantity: $finalQuantity,
@@ -1334,6 +1337,7 @@ class ProductService
         $this->recordStockHistory(
             product_id: $product->id,
             action: $action,
+            author: $author,
             unit_id: $orderProduct->unit_id,
             unit_price: $orderProduct->unit_price,
             quantity: $orderProductQuantity,
@@ -1384,7 +1388,7 @@ class ProductService
      * @param  ProcurementProduct $procurementProduct
      * @return ProductHistory
      */
-    private function handleStockAdjustmentRegularProducts( $action, $quantity, $product_id, $unit_id, $orderProduct = null, $unit_price = 0, $total_price = 0, $procurementProduct = null )
+    private function handleStockAdjustmentRegularProducts( $action, $quantity, $product_id, $unit_id, $author = 0, $orderProduct = null, $unit_price = 0, $total_price = 0, $procurementProduct = null )
     {
         /**
          * we would like to verify if
@@ -1393,8 +1397,8 @@ class ProductService
          */
         $oldQuantity = $this->getQuantity( $product_id, $unit_id );
 
-        if ( in_array( $action, ProductHistory::STOCK_REDUCE ) || in_array( $action, ProductHistory::STOCK_INCREASE ) ) {
-            if ( in_array( $action, ProductHistory::STOCK_REDUCE ) ) {
+        if ( in_array( $action, $this->getReduceActions() ) || in_array( $action, $this->getIncreaseActions() ) ) {
+            if ( in_array( $action, $this->getReduceActions() ) ) {
                 $this->preventNegativity(
                     oldQuantity: $oldQuantity,
                     quantity: $quantity
@@ -1415,7 +1419,7 @@ class ProductService
                 if ( $procurementProduct instanceof ProcurementProduct ) {
                     $this->updateProcurementProductQuantity( $procurementProduct, $quantity, ProcurementProduct::STOCK_REDUCE );
                 }
-            } elseif ( in_array( $action, ProductHistory::STOCK_INCREASE ) ) {
+            } elseif ( in_array( $action, $this->getIncreaseActions() ) ) {
                 /**
                  * @var string status
                  * @var string message
@@ -1435,6 +1439,7 @@ class ProductService
 
             return $this->recordStockHistory(
                 product_id: $product_id,
+                author: $author,
                 action: $action,
                 unit_id: $unit_id,
                 unit_price: $unit_price,
@@ -1480,6 +1485,7 @@ class ProductService
             return $this->recordStockHistory(
                 product_id: $product_id,
                 action: $action,
+                author: $author,
                 unit_id: $unit_id,
                 unit_price: $unit_price,
                 quantity: $adjustQuantity,
@@ -1520,6 +1526,7 @@ class ProductService
         $unit_price,
         $quantity,
         $total_price,
+        $author = 0,
         $order_id = null,
         $order_product_id = null,
         $procurement_product_id = null,
@@ -1541,7 +1548,7 @@ class ProductService
         $history->before_quantity = $old_quantity; // if the stock management is 0, it shouldn't change
         $history->quantity = abs( $quantity );
         $history->after_quantity = $new_quantity; // if the stock management is 0, it shouldn't change
-        $history->author = Auth::id();
+        $history->author = $author ?: Auth::id();
         $history->save();
 
         event( new ProductAfterStockAdjustmentEvent( $history ) );
@@ -1775,18 +1782,18 @@ class ProductService
     public function getLastPurchasePrice( ?Product $product, Unit $unit, ?string $before = null ): float|int
     {
         if ( $product instanceof Product ) {
-            $request = ProcurementProduct::where( 'product_id', $product->id )
+            $productHistory = ProductHistory::where( 'product_id', $product->id )
                 ->where( 'unit_id', $unit->id )
-                ->orderBy( 'id', 'desc' );
+                ->whereIn( 'operation_type', [
+                    ProductHistory::ACTION_STOCKED,
+                    ProductHistory::ACTION_CONVERT_IN,
+                ] )
+                ->when( $before, fn( $query ) => $query->where( 'created_at', '<', $before ) )
+                ->latest()
+                ->first();
 
-            if ( $before ) {
-                $request->where( 'created_at', '<=', $before );
-            }
-
-            $procurementProduct = $request->first();
-
-            if ( $procurementProduct instanceof ProcurementProduct ) {
-                return $procurementProduct->purchase_price;
+            if ( $productHistory instanceof ProductHistory ) {
+                return $productHistory->unit_price;
             }
         }
 
@@ -1841,7 +1848,7 @@ class ProductService
             $this->__fillProductFields( $product, compact( 'field', 'value', 'mode', 'fields' ) );
         }
 
-        $product->author = Auth::id();
+        $product->author = $parent->author;
         $product->parent_id = $parent->id;
         $product->type = $parent->type;
         $product->category_id = $parent->category_id;
@@ -1849,11 +1856,6 @@ class ProductService
         $product->save();
 
         event( new ProductAfterCreatedEvent( $product ) );
-
-        /**
-         * compute product tax
-         */
-        // $this->taxService->computeTax( $product, $fields[ 'tax_group_id' ] ?? null );
 
         return [
             'status' => 'success',
@@ -1886,7 +1888,7 @@ class ProductService
             $this->__fillProductFields( $product, compact( 'field', 'value', 'mode', 'fields' ) );
         }
 
-        $product->author = Auth::id();
+        $product->author = $parent->author;
         $product->parent_id = $parent->id;
         $product->type = $parent->type;
         $product->product_type = 'variation';
@@ -1995,7 +1997,7 @@ class ProductService
 
         /**
          * if the unitQuantityTo is missing, we might then
-         * create a new unit with price set to 0.
+         * create a new unit with quantity set to 0.
          */
         if ( ! $unitQuantityTo instanceof ProductUnitQuantity ) {
             $unitQuantityTo = new ProductUnitQuantity;
@@ -2085,10 +2087,14 @@ class ProductService
             total_price: ns()->currency->define( $lastFromPurchasePrice )->multipliedBy( $quantity )->toFloat(),
         );
 
-        $lastToPurchasePrice = $this->getLastPurchasePrice(
-            product: $product,
-            unit: $to
-        );
+        /**
+         * The last purchase price of the destination unit
+         * should be based on the last purchase price of the source unit
+         * divided by the finalDestionaQuantity
+         */
+        $lastToPurchasePrice = ns()->currency->define( $lastFromPurchasePrice )
+            ->divideBy( $finalDestinationQuantity )
+            ->toFloat();
 
         $this->handleStockAdjustmentRegularProducts(
             action: ProductHistory::ACTION_CONVERT_IN,
@@ -2194,5 +2200,15 @@ class ProductService
             'status' => 'success',
             'message' => __( 'The product has been deleted.' ),
         ];
+    }
+
+    public function getReduceActions()
+    {
+        return Hook::filter( 'ns-products-decrease-actions', ProductHistory::STOCK_REDUCE );
+    }
+
+    public function getIncreaseActions()
+    {
+        return Hook::filter( 'ns-products-increase-actions', ProductHistory::STOCK_INCREASE );
     }
 }

@@ -38,6 +38,7 @@ use App\Services\UsersService;
 use App\Services\Validation;
 use App\Services\WidgetService;
 use Illuminate\Foundation\AliasLoader;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
@@ -280,6 +281,14 @@ class AppServiceProvider extends ServiceProvider
 
             return "<?php echo ns()->moduleViteAssets( \"{$fileName}\", \"{$module}\" ); ?>";
         } );
+
+        /**
+         * To ensure options are always refreshed
+         * when a job is about to be processed.
+         */
+        Event::listen( JobProcessing::class, function () {
+            ns()->option->rebuild();
+        } );
     }
 
     /**
@@ -326,6 +335,45 @@ class AppServiceProvider extends ServiceProvider
             'nexopos.orders.products.refunds' => [
                 OrderProductRefund::CONDITION_DAMAGED => __( 'Damaged' ),
                 OrderProductRefund::CONDITION_UNSPOILED => __( 'Good Condition' ),
+            ],
+        ] );
+
+        /**
+         * We cannot set callback function on the configuration file
+         * as using optimize will throw an exception.
+         */
+        config( [
+            'accounting.accounts' => [
+                'assets' => [
+                    'increase' => 'debit',
+                    'decrease' => 'credit',
+                    'label' => __( 'Assets' ),
+                    'account' => 1000,
+                ],
+                'liabilities' => [
+                    'increase' => 'credit',
+                    'decrease' => 'debit',
+                    'label' => __( 'Liabilities' ),
+                    'account' => 2000,
+                ],
+                'equity' => [
+                    'increase' => 'credit',
+                    'decrease' => 'debit',
+                    'label' => __( 'Equity' ),
+                    'account' => 3000,
+                ],
+                'revenues' => [
+                    'increase' => 'credit',
+                    'decrease' => 'debit',
+                    'label' => __( 'Revenues' ),
+                    'account' => 4000,
+                ],
+                'expenses' => [
+                    'increase' => 'debit',
+                    'decrease' => 'credit',
+                    'label' => __( 'Expenses' ),
+                    'account' => 5000,
+                ],
             ],
         ] );
     }
